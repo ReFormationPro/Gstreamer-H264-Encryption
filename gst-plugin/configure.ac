@@ -29,6 +29,12 @@ AC_CHECK_PROG(HAVE_PKGCONFIG, pkg-config, [ ], [
   AC_MSG_ERROR([You need to have pkg-config installed!])
 ])
 
+AC_DEFINE_UNQUOTED(PACKAGE_VERSION, "$GST_REQUIRED", ["The version of the plugin"])
+AC_DEFINE(PACKAGE, "gst-template-plugin", ["The name of the package"])
+AC_DEFINE(GST_LICENSE, "LGPL", ["The license of the plugin"])
+AC_DEFINE(GST_PACKAGE_NAME, "GStreamer template Plug-ins", ["The name of the plugin"])
+AC_DEFINE(GST_PACKAGE_ORIGIN, "https://gstreamer.freedesktop.org", ["The origin of the plugin"])
+
 dnl Check for the required version of GStreamer core (and gst-plugins-base)
 dnl This will export GST_CFLAGS and GST_LIBS variables for use in Makefile.am
 dnl
