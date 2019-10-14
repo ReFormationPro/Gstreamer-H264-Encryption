@@ -17,31 +17,32 @@ for details [3].
 Build each module like this:
 
     cd gst-plugin
-    ./autogen.sh
-    make
+    meson builddir
+    ninja -C builddir
 
-Modify gst-plugin/src/Makefile.am to add or remove source files to build or
+See https://mesonbuild.com/Quick-guide.html on how to install the Meson
+build system and ninja.
+
+Modify gst-plugin/meson.build to add or remove source files to build or
 add additional dependencies or compiler flags or change the name of the
-plugin file to be installed. Run ./autoregen.sh if changes don't take effect
-automatically on 'make'.
+plugin file to be installed.
 
-Modify gst-plugin/configure.ac to check for additional library dependencies
-or other features needed by your plugin. Run ./autoregen.sh if changes don't
-take effect automatically on 'make'.
+Modify meson.build to check for additional library dependencies
+or other features needed by your plugin.
 
-Once the plugin is built you can either install it with 'sudo make install'
+Once the plugin is built you can either install it with `sudo ninja -C builddir install`
 (however, this will by default go into the /usr/local prefix where it won't
 be picked up by a GStreamer installed from packages, so you would need to
 set the GST_PLUGIN_PATH environment variable to include or point to
 /usr/local/lib/gstreamer-1.0/ for your plugin to be found by a from-package
 GStreamer). Alternatively, you will find your plugin binary in
-gst-plugins/src/.libs/ as libgstplugin.so or similar (the extension may vary),
+builddir/gst-plugins/src/ as libgstplugin.so or similar (the extension may vary),
 so you can also set the GST_PLUGIN_PATH environmen variable to the
-gst-plugins/src/.libs/ directory (best to specify an absolute path though).
+builddir/gst-plugins/src/ directory (best to specify an absolute path though).
 
 You can also check if it has been built correctly with:
 
-    gst-inspect-1.0 gst-plugins/src/.libs/libgstplugin.so
+    gst-inspect-1.0 builddir/gst-plugins/src/libgstplugin.so
 
 
 [1] http://www.opensource.org/licenses/mit-license.php or COPYING.MIT
