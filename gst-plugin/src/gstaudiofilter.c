@@ -1,6 +1,7 @@
 /* GStreamer audio filter example class
  * Copyright (C) <1999> Erik Walthinsen <omega@cse.ogi.edu>
  * Copyright (C) <2003> David Schleef <ds@schleef.org>
+ * Copyright (C) <2020> Niels De Graef <niels.degraef@gmail.com>
  * Copyright (C) YEAR AUTHOR_NAME AUTHOR_EMAIL
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -67,20 +68,9 @@
 GST_DEBUG_CATEGORY_STATIC (audiofiltertemplate_debug);
 #define GST_CAT_DEFAULT audiofiltertemplate_debug
 
-typedef struct _GstAudioFilterTemplate GstAudioFilterTemplate;
-typedef struct _GstAudioFilterTemplateClass GstAudioFilterTemplateClass;
-
-/* These are boilerplate cast macros and type check macros */
-#define GST_TYPE_AUDIO_FILTER_TEMPLATE \
-  (gst_audio_filter_template_get_type())
-#define GST_AUDIO_FILTER_TEMPLATE(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_AUDIO_FILTER_TEMPLATE,GstAudioFilterTemplate))
-#define GST_AUDIO_FILTER_TEMPLATE_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_AUDIO_FILTER_TEMPLATE,GstAudioFilterTemplateClass))
-#define GST_IS_AUDIO_FILTER_TEMPLATE(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_AUDIO_FILTER_TEMPLATE))
-#define GST_IS_AUDIO_FILTER_TEMPLATE_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_AUDIO_FILTER_TEMPLATE))
+#define GST_TYPE_AUDIO_FILTER_TEMPLATE (gst_audio_filter_template_get_type())
+G_DECLARE_FINAL_TYPE (GstAudioFilterTemplate, gst_audio_filter_template,
+    GST, AUDIO_FILTER_TEMPLATE, GstAudioFilter)
 
 struct _GstAudioFilterTemplate
 {
@@ -88,11 +78,6 @@ struct _GstAudioFilterTemplate
 
   /* here you can add additional per-instance
    * data such as properties */
-};
-
-struct _GstAudioFilterTemplateClass
-{
-  GstAudioFilterClass audiofilter_class;
 };
 
 

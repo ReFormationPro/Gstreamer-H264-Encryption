@@ -1,6 +1,7 @@
 /* 
  * GStreamer
  * Copyright (C) 2006 Stefan Kost <ensonic@users.sf.net>
+ * Copyright (C) 2020 Niels De Graef <niels.degraef@gmail.com>
  * Copyright (C) YEAR AUTHOR_NAME AUTHOR_EMAIL
  *
  * This library is free software; you can redistribute it and/or
@@ -27,31 +28,15 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_PLUGIN_TEMPLATE \
-  (gst_plugin_template_get_type())
-#define GST_PLUGIN_TEMPLATE(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_PLUGIN_TEMPLATE,GstPluginTemplate))
-#define GST_PLUGIN_TEMPLATE_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_PLUGIN_TEMPLATE,GstPluginTemplateClass))
-#define GST_IS_PLUGIN_TEMPLATE(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_PLUGIN_TEMPLATE))
-#define GST_IS_PLUGIN_TEMPLATE_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_PLUGIN_TEMPLATE))
-
-typedef struct _GstPluginTemplate      GstPluginTemplate;
-typedef struct _GstPluginTemplateClass GstPluginTemplateClass;
+#define GST_TYPE_PLUGIN_TEMPLATE (gst_plugin_template_get_type())
+G_DECLARE_FINAL_TYPE (GstPluginTemplate, gst_plugin_template,
+    GST, PLUGIN_TEMPLATE, GstBaseTransform)
 
 struct _GstPluginTemplate {
   GstBaseTransform element;
 
   gboolean silent;
 };
-
-struct _GstPluginTemplateClass {
-  GstBaseTransformClass parent_class;
-};
-
-GType gst_plugin_template_get_type (void);
 
 G_END_DECLS
 

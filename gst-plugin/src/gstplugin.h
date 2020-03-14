@@ -2,6 +2,7 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
+ * Copyright (C) 2020 Niels De Graef <niels.degraef@gmail.com>
  * Copyright (C) YEAR AUTHOR_NAME AUTHOR_EMAIL
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -50,20 +51,9 @@
 
 G_BEGIN_DECLS
 
-/* #defines don't like whitespacey bits */
-#define GST_TYPE_PLUGIN_TEMPLATE \
-  (gst_plugin_template_get_type())
-#define GST_PLUGIN_TEMPLATE(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_PLUGIN_TEMPLATE,GstPluginTemplate))
-#define GST_PLUGIN_TEMPLATE_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_PLUGIN_TEMPLATE,GstPluginTemplateClass))
-#define GST_IS_PLUGIN_TEMPLATE(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_PLUGIN_TEMPLATE))
-#define GST_IS_PLUGIN_TEMPLATE_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_PLUGIN_TEMPLATE))
-
-typedef struct _GstPluginTemplate      GstPluginTemplate;
-typedef struct _GstPluginTemplateClass GstPluginTemplateClass;
+#define GST_TYPE_PLUGIN_TEMPLATE (gst_plugin_template_get_type())
+G_DECLARE_FINAL_TYPE (GstPluginTemplate, gst_plugin_template,
+    GST, PLUGIN_TEMPLATE, GstElement)
 
 struct _GstPluginTemplate
 {
@@ -73,13 +63,6 @@ struct _GstPluginTemplate
 
   gboolean silent;
 };
-
-struct _GstPluginTemplateClass 
-{
-  GstElementClass parent_class;
-};
-
-GType gst_plugin_template_get_type (void);
 
 G_END_DECLS
 
