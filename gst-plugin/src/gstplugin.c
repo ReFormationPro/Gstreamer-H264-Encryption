@@ -262,9 +262,9 @@ plugin_init (GstPlugin * plugin)
       GST_TYPE_PLUGIN_TEMPLATE);
 }
 
-/* PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
+/* PACKAGE: this is usually set by meson depending on some _INIT macro
+ * in meson.build and then written into and defined in config.h, but we can
+ * just set it ourselves here in case someone doesn't use meson to
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
