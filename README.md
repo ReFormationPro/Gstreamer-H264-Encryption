@@ -50,6 +50,28 @@ You can also check if it has been built correctly with:
 
     gst-inspect-1.0 builddir/gst-plugins/src/libgstplugin.so
 
+## Auto-generating your own plugin
+
+You will find a helper script in `gst-plugins/tools/make_element` to generate
+the source/header files for a new plugin.
+
+To create sources for `myfilter` based on the `gsttransform` template run:
+
+``` shell
+cd src;
+../tools/make_element myfilter gsttransform
+```
+
+This will create `gstmyfilter.c` and `gstmyfilter.h`. Open them in an editor and
+start editing. There are several occurances of the string `template`, update
+those with real values. The plugin will be called `myfilter` and it will have
+one element called `myfilter` too. Also look for `FIXME:` markers that point you
+to places where you need to edit the code.
+
+You can then add your sources files to `gst-plugins/meson.build` and re-run
+ninja to have your plugin built.
+
+
 [MIT]: http://www.opensource.org/licenses/mit-license.php or COPYING.MIT
 [LGPL]: http://www.opensource.org/licenses/lgpl-license.php or COPYING.LIB
 [Licensing]: https://gstreamer.freedesktop.org/documentation/application-development/appendix/licensing.html
