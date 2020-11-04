@@ -55,7 +55,7 @@
  * ]|
  * </refsect2>
  */
- 
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -70,7 +70,7 @@ GST_DEBUG_CATEGORY_STATIC (audiofiltertemplate_debug);
 
 #define GST_TYPE_AUDIO_FILTER_TEMPLATE (gst_audio_filter_template_get_type())
 G_DECLARE_FINAL_TYPE (GstAudioFilterTemplate, gst_audio_filter_template,
-    GST, AUDIO_FILTER_TEMPLATE, GstAudioFilter)
+    GST, AUDIO_FILTER_TEMPLATE, GstAudioFilter);
 
 struct _GstAudioFilterTemplate
 {
@@ -90,7 +90,7 @@ enum
 enum
 {
   ARG_0
-  /* FILL ME */
+      /* FILL ME */
 };
 
 G_DEFINE_TYPE (GstAudioFilterTemplate, gst_audio_filter_template,
@@ -103,11 +103,11 @@ static void gst_audio_filter_template_get_property (GObject * object,
 
 static gboolean gst_audio_filter_template_setup (GstAudioFilter * filter,
     const GstAudioInfo * info);
-static GstFlowReturn gst_audio_filter_template_filter (GstBaseTransform * bt,
-    GstBuffer * outbuf, GstBuffer * inbuf);
+static GstFlowReturn gst_audio_filter_template_filter (GstBaseTransform *
+    bt, GstBuffer * outbuf, GstBuffer * inbuf);
 static GstFlowReturn
-gst_audio_filter_template_filter_inplace (GstBaseTransform * base_transform,
-    GstBuffer * buf);
+gst_audio_filter_template_filter_inplace (GstBaseTransform *
+    base_transform, GstBuffer * buf);
 
 #if 0
 /* This means we support signed 16-bit pcm and signed 32-bit pcm in native
@@ -154,11 +154,9 @@ gst_audio_filter_template_class_init (GstAudioFilterTemplateClass * klass)
   btrans_class->transform = gst_audio_filter_template_filter;
   btrans_class->transform_ip = gst_audio_filter_template_filter_inplace;
   /* Set some basic metadata about your new element */
-  gst_element_class_set_details_simple (element_class,
-    "Audio Filter Template", /* FIXME: short name */
-    "Filter/Effect/Audio",
-    "Filters audio", /* FIXME: short description*/
-    "Name <mail@example.com>"); /* FIXME: author */
+  gst_element_class_set_details_simple (element_class, "Audio Filter Template", /* FIXME: short name */
+      "Filter/Effect/Audio", "Filters audio",   /* FIXME: short description */
+      "Name <mail@example.com>");       /* FIXME: author */
 
   caps = gst_caps_from_string (SUPPORTED_CAPS_STRING);
   gst_audio_filter_class_add_pad_templates (audio_filter_class, caps);
@@ -275,7 +273,7 @@ gst_audio_filter_template_filter_inplace (GstBaseTransform * base_transform,
 #if 0
     switch (GST_AUDIO_FILTER_FORMAT (filter)) {
       case GST_AUDIO_FORMAT_S16LE:
-      case GST_AUDIO_FORMAT_S16BE: {
+      case GST_AUDIO_FORMAT_S16BE:{
         gint16 *samples = map.data;
         guint n_samples = map.size / sizeof (gint16);
         guint i;
@@ -287,7 +285,7 @@ gst_audio_filter_template_filter_inplace (GstBaseTransform * base_transform,
       }
       default:
         g_warning ("Unexpected audio format %s!",
-            GST_AUDIO_INFO_NAME (GST_AUDIO_FILTER_INFO(filter)));
+            GST_AUDIO_INFO_NAME (GST_AUDIO_FILTER_INFO (filter)));
         flow = GST_FLOW_ERROR;
         break;
     }
@@ -315,14 +313,9 @@ plugin_init (GstPlugin * plugin)
  *
  * FIXME:exchange the string 'Template plugin' with you plugin description
  */
-GST_PLUGIN_DEFINE (
-    GST_VERSION_MAJOR,
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     audiofilterexample,
     "Audio filter example plugin",
     plugin_init,
-    PACKAGE_VERSION,
-    GST_LICENSE,
-    GST_PACKAGE_NAME,
-    GST_PACKAGE_ORIGIN
-);
+    PACKAGE_VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN);

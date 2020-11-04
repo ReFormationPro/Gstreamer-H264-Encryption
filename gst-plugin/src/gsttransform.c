@@ -62,32 +62,28 @@ enum
  *
  * FIXME:describe the real formats here.
  */
-static GstStaticPadTemplate sink_template =
-GST_STATIC_PAD_TEMPLATE (
-  "sink",
-  GST_PAD_SINK,
-  GST_PAD_ALWAYS,
-  GST_STATIC_CAPS ("ANY")
-);
+static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
+    GST_PAD_SINK,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS ("ANY")
+    );
 
-static GstStaticPadTemplate src_template =
-GST_STATIC_PAD_TEMPLATE (
-  "src",
-  GST_PAD_SRC,
-  GST_PAD_ALWAYS,
-  GST_STATIC_CAPS ("ANY")
-);
+static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
+    GST_PAD_SRC,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS ("ANY")
+    );
 
 #define gst_plugin_template_parent_class parent_class
 G_DEFINE_TYPE (GstPluginTemplate, gst_plugin_template, GST_TYPE_BASE_TRANSFORM);
 
-static void gst_plugin_template_set_property (GObject * object, guint prop_id,
-    const GValue * value, GParamSpec * pspec);
-static void gst_plugin_template_get_property (GObject * object, guint prop_id,
-    GValue * value, GParamSpec * pspec);
+static void gst_plugin_template_set_property (GObject * object,
+    guint prop_id, const GValue * value, GParamSpec * pspec);
+static void gst_plugin_template_get_property (GObject * object,
+    guint prop_id, GValue * value, GParamSpec * pspec);
 
-static GstFlowReturn gst_plugin_template_transform_ip (GstBaseTransform * base,
-    GstBuffer * outbuf);
+static GstFlowReturn gst_plugin_template_transform_ip (GstBaseTransform *
+    base, GstBuffer * outbuf);
 
 /* GObject vmethod implementations */
 
@@ -105,14 +101,13 @@ gst_plugin_template_class_init (GstPluginTemplateClass * klass)
   gobject_class->get_property = gst_plugin_template_get_property;
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
-    g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
+      g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
           FALSE, G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
 
   gst_element_class_set_details_simple (gstelement_class,
-    "Plugin",
-    "Generic/Filter",
-    "FIXME:Generic Template Filter",
-    "AUTHOR_NAME AUTHOR_EMAIL");
+      "Plugin",
+      "Generic/Filter",
+      "FIXME:Generic Template Filter", "AUTHOR_NAME AUTHOR_EMAIL");
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_template));
@@ -126,14 +121,15 @@ gst_plugin_template_class_init (GstPluginTemplateClass * klass)
    *
    * FIXME:exchange the string 'Template plugin' with your description
    */
-  GST_DEBUG_CATEGORY_INIT (gst_plugin_template_debug, "plugin", 0, "Template plugin");
+  GST_DEBUG_CATEGORY_INIT (gst_plugin_template_debug, "plugin", 0,
+      "Template plugin");
 }
 
 /* initialize the new element
  * initialize instance structure
  */
 static void
-gst_plugin_template_init (GstPluginTemplate *filter)
+gst_plugin_template_init (GstPluginTemplate * filter)
 {
   filter->silent = FALSE;
 }
@@ -184,7 +180,7 @@ gst_plugin_template_transform_ip (GstBaseTransform * base, GstBuffer * outbuf)
 
   if (filter->silent == FALSE)
     g_print ("I'm plugged, therefore I'm in.\n");
-  
+
   /* FIXME: do something interesting here.  This simply copies the source
    * to the destination. */
 
@@ -207,14 +203,9 @@ plugin_init (GstPlugin * plugin)
  *
  * FIXME:exchange the string 'Template plugin' with you plugin description
  */
-GST_PLUGIN_DEFINE (
-    GST_VERSION_MAJOR,
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     plugin,
     "Template plugin",
     plugin_init,
-    PACKAGE_VERSION,
-    GST_LICENSE,
-    GST_PACKAGE_NAME,
-    GST_PACKAGE_ORIGIN
-)
+    PACKAGE_VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

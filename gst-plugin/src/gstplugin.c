@@ -99,13 +99,16 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 #define gst_plugin_template_parent_class parent_class
 G_DEFINE_TYPE (GstPluginTemplate, gst_plugin_template, GST_TYPE_ELEMENT);
 
-static void gst_plugin_template_set_property (GObject * object, guint prop_id,
-    const GValue * value, GParamSpec * pspec);
-static void gst_plugin_template_get_property (GObject * object, guint prop_id,
-    GValue * value, GParamSpec * pspec);
 
-static gboolean gst_plugin_template_sink_event (GstPad * pad, GstObject * parent, GstEvent * event);
-static GstFlowReturn gst_plugin_template_chain (GstPad * pad, GstObject * parent, GstBuffer * buf);
+static void gst_plugin_template_set_property (GObject * object,
+    guint prop_id, const GValue * value, GParamSpec * pspec);
+static void gst_plugin_template_get_property (GObject * object,
+    guint prop_id, GValue * value, GParamSpec * pspec);
+
+static gboolean gst_plugin_template_sink_event (GstPad * pad,
+    GstObject * parent, GstEvent * event);
+static GstFlowReturn gst_plugin_template_chain (GstPad * pad,
+    GstObject * parent, GstBuffer * buf);
 
 /* GObject vmethod implementations */
 
@@ -126,11 +129,10 @@ gst_plugin_template_class_init (GstPluginTemplateClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
           FALSE, G_PARAM_READWRITE));
 
-  gst_element_class_set_details_simple(gstelement_class,
-    "Plugin",
-    "FIXME:Generic",
-    "FIXME:Generic Template Element",
-    "AUTHOR_NAME AUTHOR_EMAIL");
+  gst_element_class_set_details_simple (gstelement_class,
+      "Plugin",
+      "FIXME:Generic",
+      "FIXME:Generic Template Element", "AUTHOR_NAME AUTHOR_EMAIL");
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_factory));
@@ -148,9 +150,9 @@ gst_plugin_template_init (GstPluginTemplate * filter)
 {
   filter->sinkpad = gst_pad_new_from_static_template (&sink_factory, "sink");
   gst_pad_set_event_function (filter->sinkpad,
-                              GST_DEBUG_FUNCPTR(gst_plugin_template_sink_event));
+      GST_DEBUG_FUNCPTR (gst_plugin_template_sink_event));
   gst_pad_set_chain_function (filter->sinkpad,
-                              GST_DEBUG_FUNCPTR(gst_plugin_template_chain));
+      GST_DEBUG_FUNCPTR (gst_plugin_template_chain));
   GST_PAD_SET_PROXY_CAPS (filter->sinkpad);
   gst_element_add_pad (GST_ELEMENT (filter), filter->sinkpad);
 
@@ -197,7 +199,8 @@ gst_plugin_template_get_property (GObject * object, guint prop_id,
 
 /* this function handles sink events */
 static gboolean
-gst_plugin_template_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
+gst_plugin_template_sink_event (GstPad * pad, GstObject * parent,
+    GstEvent * event)
 {
   GstPluginTemplate *filter;
   gboolean ret;
@@ -210,7 +213,7 @@ gst_plugin_template_sink_event (GstPad * pad, GstObject * parent, GstEvent * eve
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_CAPS:
     {
-      GstCaps * caps;
+      GstCaps *caps;
 
       gst_event_parse_caps (event, &caps);
       /* do something with the caps */
@@ -251,7 +254,7 @@ gst_plugin_template_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  /* debug category for fltering log messages
+  /* debug category for filtering log messages
    *
    * exchange the string 'Template plugin' with your description
    */
@@ -275,14 +278,9 @@ plugin_init (GstPlugin * plugin)
  *
  * exchange the string 'Template plugin' with your plugin description
  */
-GST_PLUGIN_DEFINE (
-    GST_VERSION_MAJOR,
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     plugin,
     "Template plugin",
     plugin_init,
-    PACKAGE_VERSION,
-    GST_LICENSE,
-    GST_PACKAGE_NAME,
-    GST_PACKAGE_ORIGIN
-)
+    PACKAGE_VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
