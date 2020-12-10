@@ -96,6 +96,9 @@ enum
 G_DEFINE_TYPE (GstAudioFilterTemplate, gst_audio_filter_template,
     GST_TYPE_AUDIO_FILTER);
 
+GST_ELEMENT_REGISTER_DEFINE (audiofiltertemplate, "audiofiltertemplate",
+    GST_RANK_NONE, GST_TYPE_AUDIO_FILTER_TEMPLATE);
+
 static void gst_audio_filter_template_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec);
 static void gst_audio_filter_template_get_property (GObject * object,
@@ -305,8 +308,7 @@ plugin_init (GstPlugin * plugin)
       "Audio filter template example");
 
   /* This is the name used in gst-launch-1.0 and gst_element_factory_make() */
-  return gst_element_register (plugin, "audiofiltertemplate", GST_RANK_NONE,
-      GST_TYPE_AUDIO_FILTER_TEMPLATE);
+  return GST_ELEMENT_REGISTER (audiofiltertemplate, plugin);
 }
 
 /* gstreamer looks for this structure to register plugins
