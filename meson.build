@@ -8,8 +8,8 @@ gst_version = meson.project_version()
 
 api_version = '1.0'
 
-gst_dep = dependency('gstreamer-1.0',
-    fallback : ['gstreamer', 'gst_dep'])
+gst_dep = dependency('gstreamer-1.0', version : '>=1.19',
+    required : true, fallback : ['gstreamer', 'gst_dep'])
 
 subdir('gst-app')
 subdir('gst-plugin')
