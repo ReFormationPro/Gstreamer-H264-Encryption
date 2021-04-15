@@ -76,8 +76,8 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
 
 #define gst_plugin_template_parent_class parent_class
 G_DEFINE_TYPE (GstPluginTemplate, gst_plugin_template, GST_TYPE_BASE_TRANSFORM);
-GST_ELEMENT_REGISTER_DEFINE (myfirstplugin, "myfirstplugin", GST_RANK_NONE,
-    GST_TYPE_PLUGIN);
+GST_ELEMENT_REGISTER_DEFINE (plugin_template, "plugin_template", GST_RANK_NONE,
+    GST_TYPE_PLUGIN_TEMPLATE);
 
 static void gst_plugin_template_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec);
@@ -197,7 +197,7 @@ gst_plugin_template_transform_ip (GstBaseTransform * base, GstBuffer * outbuf)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (myfirstplugin, plugin);
+  return GST_ELEMENT_REGISTER (plugin_template, plugin);
 }
 
 /* gstreamer looks for this structure to register plugins
@@ -207,6 +207,6 @@ plugin_init (GstPlugin * plugin)
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     plugin,
-    "Template plugin",
+    "plugin_template",
     plugin_init,
     PACKAGE_VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

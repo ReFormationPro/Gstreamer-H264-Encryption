@@ -3,6 +3,7 @@
 Template=$1;
 srcfile=$2.c;
 srcfile_h=$2.h;
+meson_build=../meson.build;
 
 if test x"$1" = x ; then
 	echo "$0 Objectname [srcfile]\n";
@@ -45,8 +46,7 @@ sed \
 	-e "s/gstplugin\.h/gst$filename.h/g" \
         -e "s/gsttransform\.h/gst$filename.h/g" \
 	-e "s/GstPluginTemplate/Gst$Template/g" \
-	-e "s/gst_plugin_template/gst_$template_/g" \
-	-e "s/gst_type_plugin_template/gst_$template_/g" \
+	-e "s/plugin_template/$template_/g" \
 	-e "s/GST_PLUGIN_TEMPLATE/GST_$TEMPLATE/g" \
 	-e "s/GST_TYPE_PLUGIN_TEMPLATE/GST_TYPE_$TEMPLATE/g" \
 	-e 's/\$I[d]: \([^$]*\)\$/\1/g' \
@@ -63,9 +63,9 @@ if [ -e $srcfile_h ]; then
   sed \
 	-e 's/gstplugin\.c/SOURCEFILE/g' \
 	-e "s/GstPluginTemplate/Gst$Template/g" \
-	-e "s/gst_plugin_template/gst_$template_/g" \
+	-e "s/plugin_template/$template_/g" \
 	-e "s/gst_type_plugin_template/gst_$template_/g" \
-	-e "s/GST_PLUGIN_TEMPLATE/GST_$TEMPLATE/g" \
+	-e "s/PLUGIN_TEMPLATE/$TEMPLATE/g" \
 	-e "s/GST_TYPE_PLUGIN_TEMPLATE/GST_TYPE_$TEMPLATE/g" \
 	-e "s/GST_IS_PLUGIN_TEMPLATE/GST_IS_$TEMPLATE/g" \
 	-e 's/\$I[d]: \([^$]*\)\$/\1/g' \
@@ -79,3 +79,9 @@ if [ -e $srcfile_h ]; then
 	$srcfile_h >gst$filename.h.tmp && mv gst$filename.h.tmp gst$filename.h
 fi
 
+if [ -e $meson_build ]; then
+  sed \
+	-e "s/TEMPLATE/$Template/g" \
+	-e "s/###//g" \
+	$meson_build > $meson_build.tmp && mv $meson_build.tmp $meson_build
+fi

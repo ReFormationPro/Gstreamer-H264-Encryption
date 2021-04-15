@@ -37,3 +37,16 @@ gstaudiofilterexample = library('gstaudiofilterexample',
   install : true,
   install_dir : plugins_install_dir,
 )
+
+# The TEMPLATE Plugin
+### gstTEMPLATE_sources = [
+###  'src/gstTEMPLATE.c',
+###  ]
+
+###gstTEMPLATEexample = library('gstTEMPLATE',
+###  gstTEMPLATE_sources,
+###  c_args: plugin_c_args,
+###  dependencies : [gst_dep, gstbase_dep],
+###  install : true,
+###  install_dir : plugins_install_dir,
+###)

@@ -99,8 +99,8 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 #define gst_plugin_template_parent_class parent_class
 G_DEFINE_TYPE (GstPluginTemplate, gst_plugin_template, GST_TYPE_ELEMENT);
 
-GST_ELEMENT_REGISTER_DEFINE (myfirstplugin, "myfirstplugin", GST_RANK_NONE,
-    GST_TYPE_PLUGIN);
+GST_ELEMENT_REGISTER_DEFINE (plugin_template, "plugin_template", GST_RANK_NONE,
+    GST_TYPE_PLUGIN_TEMPLATE);
 
 static void gst_plugin_template_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec);
@@ -263,7 +263,7 @@ plugin_init (GstPlugin * plugin)
   GST_DEBUG_CATEGORY_INIT (gst_plugin_template_debug, "plugin",
       0, "Template plugin");
 
-  return GST_ELEMENT_REGISTER (myfirstplugin, plugin);
+  return GST_ELEMENT_REGISTER (plugin_template, plugin);
 }
 
 /* PACKAGE: this is usually set by meson depending on some _INIT macro
@@ -282,6 +282,6 @@ plugin_init (GstPlugin * plugin)
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     plugin,
-    "Template plugin",
+    "plugin_template",
     plugin_init,
     PACKAGE_VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
