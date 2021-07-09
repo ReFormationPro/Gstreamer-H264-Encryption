@@ -81,7 +81,7 @@ fi
 
 if [ -e $meson_build ]; then
   sed \
-	-e "s/TEMPLATE/$Template/g" \
+	-e "s/TEMPLATE/$template/g" \
 	-e "s/###//g" \
 	$meson_build > $meson_build.tmp && mv $meson_build.tmp $meson_build
 fi
