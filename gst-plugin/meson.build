@@ -38,15 +38,15 @@ gstaudiofilterexample = library('gstaudiofilterexample',
   install_dir : plugins_install_dir,
 )
 
-# The TEMPLATE Plugin
-### gstTEMPLATE_sources = [
-###  'src/gstTEMPLATE.c',
-###  ]
+# The h264encrypt Plugin
+ gsth264encrypt_sources = [
+  'src/gsth264encrypt.c',
+  ]
 
-###gstTEMPLATEexample = library('gstTEMPLATE',
-###  gstTEMPLATE_sources,
-###  c_args: plugin_c_args,
-###  dependencies : [gst_dep, gstbase_dep],
-###  install : true,
-###  install_dir : plugins_install_dir,
-###)
+gsth264encexample = library('gsth264encrypt',
+  gsth264encrypt_sources,
+  c_args: plugin_c_args + ['-DGST_USE_UNSTABLE_API'],
+  dependencies : [gst_dep, gstbase_dep, gstcodecparsers_dep],
+  install : true,
+  install_dir : plugins_install_dir,
+)
