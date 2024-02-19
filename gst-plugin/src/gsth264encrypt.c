@@ -133,11 +133,10 @@ static void gst_h264_encrypt_init(GstH264Encrypt *filter) {
   filter->nalparser = gst_h264_nal_parser_new();
 }
 
-static void gst_h264_encrypt_dispose(GObject *object) { g_print("Dispose!\n"); }
+static void gst_h264_encrypt_dispose(GObject *object) {}
 
 static void gst_h264_encrypt_finalize(GObject *object) {
   GstH264Encrypt *filter = GST_H264_ENCRYPT(object);
-  g_print("Finalize!\n");
   gst_h264_nal_parser_free(filter->nalparser);
   filter->nalparser = NULL;
 }
@@ -225,20 +224,3 @@ static GstFlowReturn gst_h264_encrypt_transform_ip(GstBaseTransform *base,
   gst_buffer_unmap(outbuf, &map_info);
   return GST_FLOW_OK;
 }
-
-/* entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-static gboolean h264encrypt_init(GstPlugin *h264encrypt) {
-  return GST_ELEMENT_REGISTER(h264encrypt, h264encrypt);
-}
-
-/* gstreamer looks for this structure to register h264encrypts
- *
- * FIXME:exchange the string 'Template h264encrypt' with you h264encrypt
- * description
- */
-GST_PLUGIN_DEFINE(GST_VERSION_MAJOR, GST_VERSION_MINOR, h264encrypt,
-                  "h264encrypt", h264encrypt_init, PACKAGE_VERSION, GST_LICENSE,
-                  GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

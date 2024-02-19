@@ -2,9 +2,8 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
- * Copyright (C) 2020 Niels De Graef <niels.degraef@gmail.com>
  * Copyright (C) YEAR AUTHOR_NAME AUTHOR_EMAIL
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
  * to deal in the Software without restriction, including without limitation
@@ -44,26 +43,40 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GST_PLUGIN_TEMPLATE_H__
-#define __GST_PLUGIN_TEMPLATE_H__
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 
 #include <gst/gst.h>
 
-G_BEGIN_DECLS
+#include "gsth264encrypt.h"
+#include "gsth264encryptionplugin.h"
 
-#define GST_TYPE_PLUGIN_TEMPLATE (gst_plugin_template_get_type())
-G_DECLARE_FINAL_TYPE (GstPluginTemplate, gst_plugin_template,
-    GST, PLUGIN_TEMPLATE, GstElement)
+// GST_DEBUG_CATEGORY_STATIC(gst_plugin_template_debug);
+// #define GST_CAT_DEFAULT gst_plugin_template_debug
 
-struct _GstPluginTemplate
-{
-  GstElement element;
+/* PACKAGE: this is usually set by meson depending on some _INIT macro
+ * in meson.build and then written into and defined in config.h, but we can
+ * just set it ourselves here in case someone doesn't use meson to
+ * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
+ */
+#ifndef PACKAGE
+#define PACKAGE "h264encryption"
+#endif
 
-  GstPad *sinkpad, *srcpad;
+/* entry point to initialize the plug-in
+ * initialize the plug-in itself
+ * register the element factories and other features
+ */
+static gboolean h264encryption_init(GstPlugin *h264encryption) {
+  return GST_ELEMENT_REGISTER(h264encrypt, h264encryption);
+}
 
-  gboolean silent;
-};
-
-G_END_DECLS
-
-#endif /* __GST_PLUGIN_TEMPLATE_H__ */
+/* gstreamer looks for this structure to register plugins
+ *
+ * FIXME:exchange the string 'Template h264encryption' with your plugin
+ * description
+ */
+GST_PLUGIN_DEFINE(GST_VERSION_MAJOR, GST_VERSION_MINOR, h264encryption,
+                  "h264encryption", h264encryption_init, PACKAGE_VERSION,
+                  GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
