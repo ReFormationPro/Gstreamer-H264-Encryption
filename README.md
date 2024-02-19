@@ -1,3 +1,9 @@
+# TODO
+- In counter mode, we can use threading for speed-up.
+
+
+#### *Original README.md is below:*
+
 # GStreamer template repository
 
 This git module contains template code for possible GStreamer projects.

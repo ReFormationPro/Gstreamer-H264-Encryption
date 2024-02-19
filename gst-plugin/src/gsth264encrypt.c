@@ -41,6 +41,7 @@
 #include <gst/controller/controller.h>
 #include <gst/gst.h>
 
+#include "ciphers/aes.h"
 #include "gsth264encrypt.h"
 
 GST_DEBUG_CATEGORY_STATIC(gst_h264_encrypt_debug);
@@ -56,6 +57,9 @@ enum {
   PROP_0,
   PROP_SILENT,
 };
+
+static uint8_t key[16] = {10, 10, 10, 20, 20, 20, 30, 30,
+                          30, 04, 04, 04, 04, 05, 05, 05};
 
 /* the capabilities of the inputs and outputs.
  *
@@ -191,9 +195,12 @@ static GstFlowReturn gst_h264_encrypt_transform_ip(GstBaseTransform *base,
   GstH264NalUnit nalu;
   GstH264ParserResult result = gst_h264_parser_identify_nalu(
       filter->nalparser, map_info.data, 0, map_info.size, &nalu);
+  struct AES_ctx ctx, ctx2;
+  AES_init_ctx_iv(&ctx, key, key);
+  AES_init_ctx_iv(&ctx2, key, key);
   while (result == GST_H264_PARSER_OK || result == GST_H264_PARSER_NO_NAL_END) {
     // Process the data
-    g_print("I found: %d\n", nalu.type);
+    if (nalu.type != 1 && nalu.type != 9) g_print("I found: %d\n\n", nalu.type);
     /**
      * TODO: Encrypt the following NALU types:
      *
@@ -203,6 +210,14 @@ static GstFlowReturn gst_h264_encrypt_transform_ip(GstBaseTransform *base,
       GST_H264_NAL_SLICE_DPC    = 4,
       GST_H264_NAL_SLICE_IDR    = 5,
     */
+    if (nalu.type >= GST_H264_NAL_SLICE &&
+        nalu.type <= GST_H264_NAL_SLICE_IDR) {
+      guint payload_offset = nalu.offset + nalu.header_bytes;
+      AES_CTR_xcrypt_buffer(&ctx, &nalu.data[payload_offset],
+                            nalu.size - nalu.header_bytes);
+      // AES_CTR_xcrypt_buffer(&ctx2, &nalu.data[payload_offset],
+      //                       nalu.size - nalu.header_bytes);
+    }
     result = gst_h264_parser_identify_nalu(filter->nalparser, map_info.data,
                                            nalu.offset + nalu.size,  //
                                            map_info.size, &nalu);

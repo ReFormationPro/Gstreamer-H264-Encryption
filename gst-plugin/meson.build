@@ -41,6 +41,7 @@ gstaudiofilterexample = library('gstaudiofilterexample',
 # The h264encrypt Plugin
  gsth264encrypt_sources = [
   'src/gsth264encrypt.c',
+  'src/ciphers/aes.c'
   ]
 
 gsth264encexample = library('gsth264encrypt',
