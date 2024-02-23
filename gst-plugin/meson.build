@@ -17,6 +17,7 @@ gstaudio_dep = dependency('gstreamer-audio-1.0',
   'src/gsth264encrypt.c',
   'src/ciphers/aes.c',
   'src/gsth264encryptionplugin.c',
+  'src/gsth264encryptionmode.c',
   ]
 
 gsth264encryption = library('gsth264encryption',

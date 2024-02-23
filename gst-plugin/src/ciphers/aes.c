@@ -54,6 +54,7 @@ NOTE:   String length must be evenly divisible by 16byte (str_len % 16 == 0)
 #define Nk 6
 #define Nr 12
 #else
+// AES128
 #define Nk 4   // The number of 32 bit words in a key.
 #define Nr 10  // The number of rounds in AES Cipher.
 #endif

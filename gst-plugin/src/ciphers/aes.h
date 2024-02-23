@@ -38,6 +38,7 @@
 #define AES_KEYLEN 24
 #define AES_keyExpSize 208
 #else
+// AES128
 #define AES_KEYLEN 16  // Key length in bytes
 #define AES_keyExpSize 176
 #endif

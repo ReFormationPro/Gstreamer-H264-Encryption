@@ -27,6 +27,9 @@
 #include <gst/codecparsers/gsth264parser.h>
 #include <gst/gst.h>
 
+#include "ciphers/aes.h"
+#include "gsth264encryptionmode.h"
+
 G_BEGIN_DECLS
 
 GST_ELEMENT_REGISTER_DECLARE(h264encrypt);
@@ -49,6 +52,9 @@ struct _GstH264Encrypt {
 
   gboolean silent;
   GstH264NalParser *nalparser;
+  GstH264EncryptionMode encryption_mode;
+  uint8_t iv[AES_BLOCKLEN];
+  uint8_t key[AES_KEYLEN];
 };
 
 G_END_DECLS
