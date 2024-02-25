@@ -160,16 +160,20 @@ static void gst_h264_encrypt_init(GstH264Encrypt *h264encrypt) {
   h264encrypt->iv = NULL;
 }
 
-static void gst_h264_encrypt_dispose(GObject *object) {}
+static void gst_h264_encrypt_dispose(GObject *object) {
+  G_OBJECT_CLASS(gst_h264_encrypt_parent_class)->dispose(object);
+}
 
 static void gst_h264_encrypt_finalize(GObject *object) {
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(object);
   gst_h264_nal_parser_free(h264encrypt->nalparser);
   h264encrypt->nalparser = NULL;
-  if (!h264encrypt->key) gst_encryption_key_free(h264encrypt->key);
+  // FIXME need to use
+  if (h264encrypt->key) g_boxed_free(GST_TYPE_ENCRYPTION_KEY, h264encrypt->key);
   h264encrypt->key = NULL;
-  if (!h264encrypt->iv) gst_encryption_iv_free(h264encrypt->iv);
+  if (h264encrypt->iv) g_boxed_free(GST_TYPE_ENCRYPTION_IV, h264encrypt->iv);
   h264encrypt->iv = NULL;
+  G_OBJECT_CLASS(gst_h264_encrypt_parent_class)->finalize(object);
 }
 
 static void gst_h264_encrypt_set_property(GObject *object, guint prop_id,
@@ -183,10 +187,16 @@ static void gst_h264_encrypt_set_property(GObject *object, guint prop_id,
       h264encrypt->encryption_mode = g_value_get_enum(value);
       break;
     case PROP_KEY:
-      h264encrypt->key = g_value_get_boxed(value);
+      if (h264encrypt->key) {
+        g_boxed_free(GST_TYPE_ENCRYPTION_KEY, h264encrypt->key);
+      }
+      h264encrypt->key = g_value_dup_boxed(value);
       break;
     case PROP_IV:
-      h264encrypt->iv = g_value_get_boxed(value);
+      if (h264encrypt->iv) {
+        g_boxed_free(GST_TYPE_ENCRYPTION_IV, h264encrypt->iv);
+      }
+      h264encrypt->iv = g_value_dup_boxed(value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
