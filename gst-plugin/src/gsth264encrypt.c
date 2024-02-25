@@ -44,6 +44,7 @@
 #include "ciphers/aes.h"
 #include "gsth264encrypt.h"
 #include "gsth264encryptionmode.h"
+#include "gsth264encryptiontypes.h"
 
 GST_DEBUG_CATEGORY_STATIC(gst_h264_encrypt_debug);
 #define GST_CAT_DEFAULT gst_h264_encrypt_debug
@@ -57,12 +58,13 @@ enum {
 
 enum {
   PROP_0,
-  PROP_SILENT,
   PROP_ENCRYPTION_MODE,
+  PROP_IV,
+  PROP_KEY,
 };
 
-static uint8_t key[16] = {10, 10, 10, 20, 20, 20, 30, 30,
-                          30, 04, 04, 04, 04, 05, 05, 05};
+// static uint8_t key[16] = {10, 10, 10, 20, 20, 20, 30, 30,
+//                           30, 04, 04, 04, 04, 05, 05, 05};
 
 /* the capabilities of the inputs and outputs.
  *
@@ -107,11 +109,6 @@ static void gst_h264_encrypt_class_init(GstH264EncryptClass *klass) {
   gobject_class->dispose = gst_h264_encrypt_dispose;
   gobject_class->finalize = gst_h264_encrypt_finalize;
 
-  g_object_class_install_property(
-      gobject_class, PROP_SILENT,
-      g_param_spec_boolean("silent", "Silent", "Produce verbose output ?",
-                           FALSE, G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
-
   gst_element_class_set_details_simple(
       gstelement_class, "h264encrypt", "Codec/Encryptor/Video",
       "H264 Video Encryptor", "Oguzhan Oztaskin <oguzhanoztaskin@gmail.com>");
@@ -122,6 +119,22 @@ static void gst_h264_encrypt_class_init(GstH264EncryptClass *klass) {
                         GST_TYPE_H264_ENCRYPTION_MODE, DEFAULT_ENCRYPTION_MODE,
                         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
                             GST_PARAM_MUTABLE_PAUSED));
+  g_object_class_install_property(
+      gobject_class, PROP_KEY,
+      g_param_spec_boxed("key", "Encryption Key",
+                         // TODO Just enter bitsize
+                         G_STRINGIFY(AES_KEYLEN * 8) " bit encryption key",
+                         GST_TYPE_ENCRYPTION_KEY,
+                         G_PARAM_WRITABLE | GST_PARAM_MUTABLE_PAUSED |
+                             G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property(
+      gobject_class, PROP_IV,
+      g_param_spec_boxed(
+          "iv", "Encryption IV",
+          // TODO Just enter bitsize
+          G_STRINGIFY(AES_BLOCKLEN *
+                      8) " bit encryption iv. Required for CTR/CBC modes",
+          GST_TYPE_ENCRYPTION_IV, G_PARAM_WRITABLE | GST_PARAM_MUTABLE_PAUSED));
 
   gst_element_class_add_pad_template(
       gstelement_class, gst_static_pad_template_get(&src_template));
@@ -141,9 +154,10 @@ static void gst_h264_encrypt_class_init(GstH264EncryptClass *klass) {
  * initialize instance structure
  */
 static void gst_h264_encrypt_init(GstH264Encrypt *h264encrypt) {
-  h264encrypt->silent = FALSE;
   h264encrypt->nalparser = gst_h264_nal_parser_new();
   h264encrypt->encryption_mode = DEFAULT_ENCRYPTION_MODE;
+  h264encrypt->key = NULL;
+  h264encrypt->iv = NULL;
 }
 
 static void gst_h264_encrypt_dispose(GObject *object) {}
@@ -152,19 +166,27 @@ static void gst_h264_encrypt_finalize(GObject *object) {
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(object);
   gst_h264_nal_parser_free(h264encrypt->nalparser);
   h264encrypt->nalparser = NULL;
+  if (!h264encrypt->key) gst_encryption_key_free(h264encrypt->key);
+  h264encrypt->key = NULL;
+  if (!h264encrypt->iv) gst_encryption_iv_free(h264encrypt->iv);
+  h264encrypt->iv = NULL;
 }
 
 static void gst_h264_encrypt_set_property(GObject *object, guint prop_id,
                                           const GValue *value,
                                           GParamSpec *pspec) {
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(object);
+  GST_ERROR_OBJECT(h264encrypt, "Set called!");
 
   switch (prop_id) {
-    case PROP_SILENT:
-      h264encrypt->silent = g_value_get_boolean(value);
-      break;
     case PROP_ENCRYPTION_MODE:
       h264encrypt->encryption_mode = g_value_get_enum(value);
+      break;
+    case PROP_KEY:
+      h264encrypt->key = g_value_get_boxed(value);
+      break;
+    case PROP_IV:
+      h264encrypt->iv = g_value_get_boxed(value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -177,11 +199,14 @@ static void gst_h264_encrypt_get_property(GObject *object, guint prop_id,
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(object);
 
   switch (prop_id) {
-    case PROP_SILENT:
-      g_value_set_boolean(value, h264encrypt->silent);
-      break;
     case PROP_ENCRYPTION_MODE:
       g_value_set_enum(value, h264encrypt->encryption_mode);
+      break;
+    case PROP_KEY:
+      g_value_set_boxed(value, h264encrypt->key);
+      break;
+    case PROP_IV:
+      g_value_set_boxed(value, h264encrypt->iv);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -196,46 +221,46 @@ static void gst_h264_encrypt_get_property(GObject *object, guint prop_id,
 static GstFlowReturn gst_h264_encrypt_transform_ip(GstBaseTransform *base,
                                                    GstBuffer *outbuf) {
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(base);
+  GstH264NalUnit nalu;
+  GstH264ParserResult result;
+  struct AES_ctx ctx;
+  GstMapInfo map_info;
 
   if (GST_CLOCK_TIME_IS_VALID(GST_BUFFER_TIMESTAMP(outbuf)))
     gst_object_sync_values(GST_OBJECT(h264encrypt),
                            GST_BUFFER_TIMESTAMP(outbuf));
-
-  if (h264encrypt->silent == FALSE) g_print("I'm plugged, therefore I'm in.\n");
-
-  /* FIXME: do something interesting here.  This simply copies the source
-   * to the destination. */
-
-  GstMapInfo map_info;
   if (G_UNLIKELY(!gst_buffer_map(outbuf, &map_info, GST_MAP_READWRITE))) {
     GST_ERROR_OBJECT(base, "Unable to map buffer for rw!");
     return GST_FLOW_ERROR;
   }
-  GstH264NalUnit nalu;
-  GstH264ParserResult result = gst_h264_parser_identify_nalu(
-      h264encrypt->nalparser, map_info.data, 0, map_info.size, &nalu);
-  struct AES_ctx ctx, ctx2;
-  AES_init_ctx_iv(&ctx, key, key);
-  AES_init_ctx_iv(&ctx2, key, key);
+  if (G_LIKELY(h264encrypt->encryption_mode !=
+               GST_H264_ENCRYPTION_MODE_AES_ECB)) {
+    if (G_UNLIKELY(!h264encrypt->key || !h264encrypt->iv)) {
+      GST_ERROR_OBJECT(base, "Key or IV is not set!");
+      return GST_FLOW_ERROR;
+    }
+    AES_init_ctx_iv(&ctx, h264encrypt->key->bytes, h264encrypt->iv->bytes);
+  } else {
+    if (G_UNLIKELY(!h264encrypt->key)) {
+      GST_ERROR_OBJECT(base, "Key is not set!");
+      return GST_FLOW_ERROR;
+    }
+    AES_init_ctx(&ctx, h264encrypt->key->bytes);
+  }
+  result = gst_h264_parser_identify_nalu(h264encrypt->nalparser, map_info.data,
+                                         0, map_info.size, &nalu);
   while (result == GST_H264_PARSER_OK || result == GST_H264_PARSER_NO_NAL_END) {
-    // Process the data
-    if (nalu.type != 1 && nalu.type != 9) g_print("I found: %d\n\n", nalu.type);
-    /**
-     * TODO: Encrypt the following NALU types:
-     *
-     * GST_H264_NAL_SLICE        = 1,
-      GST_H264_NAL_SLICE_DPA    = 2,
-      GST_H264_NAL_SLICE_DPB    = 3,
-      GST_H264_NAL_SLICE_DPC    = 4,
-      GST_H264_NAL_SLICE_IDR    = 5,
-    */
+    // Encrypts the following NALU types:
+    // GST_H264_NAL_SLICE        = 1,
+    // GST_H264_NAL_SLICE_DPA    = 2,
+    // GST_H264_NAL_SLICE_DPB    = 3,
+    // GST_H264_NAL_SLICE_DPC    = 4,
+    // GST_H264_NAL_SLICE_IDR    = 5,
     if (nalu.type >= GST_H264_NAL_SLICE &&
         nalu.type <= GST_H264_NAL_SLICE_IDR) {
       guint payload_offset = nalu.offset + nalu.header_bytes;
       AES_CTR_xcrypt_buffer(&ctx, &nalu.data[payload_offset],
                             nalu.size - nalu.header_bytes);
-      // AES_CTR_xcrypt_buffer(&ctx2, &nalu.data[payload_offset],
-      //                       nalu.size - nalu.header_bytes);
     }
     result =
         gst_h264_parser_identify_nalu(h264encrypt->nalparser, map_info.data,

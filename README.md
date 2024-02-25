@@ -1,6 +1,8 @@
 # TODO
 - In counter mode, we can use threading for speed-up.
-
+- Make key and iv private and write-only
+- gst_value_register (const GstValueTable * table) or g_value_register_transform_func
+  - Using gst_value_register
 
 #### *Original README.md is below:*
 

@@ -29,6 +29,7 @@
 
 #include "ciphers/aes.h"
 #include "gsth264encryptionmode.h"
+#include "gsth264encryptiontypes.h"
 
 G_BEGIN_DECLS
 
@@ -50,11 +51,10 @@ G_DECLARE_FINAL_TYPE(GstH264Encrypt, gst_h264_encrypt, GST, H264_ENCRYPT,
 struct _GstH264Encrypt {
   GstBaseTransform element;
 
-  gboolean silent;
   GstH264NalParser *nalparser;
   GstH264EncryptionMode encryption_mode;
-  uint8_t iv[AES_BLOCKLEN];
-  uint8_t key[AES_KEYLEN];
+  GstEncryptionKey *key;
+  GstEncryptionIV *iv;
 };
 
 G_END_DECLS

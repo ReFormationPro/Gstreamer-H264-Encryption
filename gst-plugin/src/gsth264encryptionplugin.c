@@ -64,11 +64,15 @@
 #define PACKAGE "h264encryption"
 #endif
 
+GST_DEBUG_CATEGORY(GST_H264_ENCRYPTION);
+
 /* entry point to initialize the plug-in
  * initialize the plug-in itself
  * register the element factories and other features
  */
 static gboolean h264encryption_init(GstPlugin *h264encryption) {
+  GST_DEBUG_CATEGORY_INIT(GST_H264_ENCRYPTION, "GST_H264_ENCRYPTION", 0,
+                          "GstH264Encryption general logs");
   return GST_ELEMENT_REGISTER(h264encrypt, h264encryption);
 }
 
