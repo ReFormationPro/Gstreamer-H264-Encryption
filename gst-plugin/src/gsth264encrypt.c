@@ -180,7 +180,6 @@ static void gst_h264_encrypt_set_property(GObject *object, guint prop_id,
                                           const GValue *value,
                                           GParamSpec *pspec) {
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(object);
-  GST_ERROR_OBJECT(h264encrypt, "Set called!");
 
   switch (prop_id) {
     case PROP_ENCRYPTION_MODE:
@@ -269,8 +268,63 @@ static GstFlowReturn gst_h264_encrypt_transform_ip(GstBaseTransform *base,
     if (nalu.type >= GST_H264_NAL_SLICE &&
         nalu.type <= GST_H264_NAL_SLICE_IDR) {
       guint payload_offset = nalu.offset + nalu.header_bytes;
-      AES_CTR_xcrypt_buffer(&ctx, &nalu.data[payload_offset],
-                            nalu.size - nalu.header_bytes);
+      switch (h264encrypt->encryption_mode) {
+        case GST_H264_ENCRYPTION_MODE_AES_CTR:
+          AES_CTR_xcrypt_buffer(&ctx, &nalu.data[payload_offset],
+                                nalu.size - nalu.header_bytes);
+          break;
+        case GST_H264_ENCRYPTION_MODE_AES_CBC:
+          AES_CBC_encrypt_buffer(&ctx, &nalu.data[payload_offset],
+                                 nalu.size - nalu.header_bytes);
+          break;
+        case GST_H264_ENCRYPTION_MODE_AES_ECB:
+          // FIXME Last block has to be of size AES_BLOCKLEN too
+          // Here, we instead just do not encrypt the last block.
+          // We should be using padding here instead
+          const size_t encryption_block_size = nalu.size - nalu.header_bytes;
+          for (size_t i = 0; i < encryption_block_size - AES_BLOCKLEN;
+               i += AES_BLOCKLEN) {
+            AES_ECB_encrypt(&ctx, &nalu.data[payload_offset + i]);
+          }
+          break;
+        case GST_H264_ENCRYPTION_MODE_AES_ECB_DECRYPT: {
+          // FIXME Same as ecb encryption
+          const size_t encryption_block_size = nalu.size - nalu.header_bytes;
+          for (size_t i = 0; i < encryption_block_size - AES_BLOCKLEN;
+               i += AES_BLOCKLEN) {
+            AES_ECB_decrypt(&ctx, &nalu.data[payload_offset + i]);
+          }
+          break;
+        }
+        case GST_H264_ENCRYPTION_MODE_AES_CBC_DECRYPT: {
+          AES_CBC_decrypt_buffer(&ctx, &nalu.data[payload_offset],
+                                 nalu.size - nalu.header_bytes);
+          break;
+        }
+      }
+    }
+    // TODO Fix emulation 3 bytes
+    uint32_t state = 0xffffffff;
+    for (size_t i = 0; i < nalu.size - nalu.header_bytes; i++) {
+      state = (state << 8) |
+              (nalu.data[nalu.offset + nalu.header_bytes + i] & 0xff);
+      switch (state & 0x00ffffff) {
+        case 0x00000000:
+        case 0x00000001:
+        case 0x00000002:
+        case 0x00000003: {
+          GST_ERROR_OBJECT(
+              h264encrypt,
+              "Emulation prevention byte is found in the encrypted result!");
+          // gst_buffer_unmap(outbuf, &map_info);
+          // return GST_FLOW_ERROR;
+
+          // Just try to make it work even if we are deliberately corrupting the
+          // video. transform_ip does not allow us to change buffer size
+          // nalu.data[nalu.offset + nalu.header_bytes + i - 1] = 1;
+          state = 0xffffff00;
+        }
+      }
     }
     result =
         gst_h264_parser_identify_nalu(h264encrypt->nalparser, map_info.data,

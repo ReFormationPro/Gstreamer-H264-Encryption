@@ -1,8 +1,29 @@
-# TODO
-- In counter mode, we can use threading for speed-up.
-- Make key and iv private and write-only
-- gst_value_register (const GstValueTable * table) or g_value_register_transform_func
-  - Using gst_value_register
+# GStreamer H264 Encryption Plugin
+This plugin is designed to offer GStreamer elements for H.264 encryption/decryption while preserving the H.264 structure, ensuring the integrity of its headers. The goal is to enable the playback of the encrypted stream even if properties such as stream-format or alignment are altered. This capability allows secure video streaming over potentially insecure channels or storage in the MP4 format, with the added advantage of recoverability in the face of packet loss, common in UDP streams.
+
+The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR modes. Although the IV (Initialization Vector) and key are currently static, there are plans to enhance security by introducing dynamic IVs in future iterations. The AES implementation used can be found [here.](https://github.com/kokke/tiny-AES-c/tree/master "Tiny AES C")
+
+#### Note: Use it at your own risk!
+
+## TODO
+- Make the key and IV private and write-only.
+- Address Emulation Prevention: Insert 3 bytes in the encrypted stream to prevent emulation issues.
+- Dynamically generate IV: Replace the static IV property with a callback that returns a unique IV for each initialization of the AES context.
+- Improve decryption process: Insert the IV into the access unit as SEI (Supplemental Enhancement Information) to enable the decryptor to use it for decryption.
+
+## Issues
+- Stream Format Conversion: Converting between stream formats AVC and byte-stream breaks the stream.
+- H264Parse Element: Cannot insert a single h264parse that does supposedly nothing between encryptor and decryptor - Why? What does it change?
+
+## Example Pipelines:
+- `gst-launch-1.0 videotestsrc ! nvh264enc ! \
+    h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
+    h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
+    nvh264dec ! glimagesink`
+- `gst-launch-1.0 videotestsrc ! nvh264enc ! \
+    h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
+    h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-cbc-dec ! \
+    nvh264dec ! glimagesink`
 
 #### *Original README.md is below:*
 

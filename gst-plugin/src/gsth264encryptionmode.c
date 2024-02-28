@@ -12,6 +12,14 @@ GType gst_h264_encryption_mode_get_type(void) {
        "aes-ctr"},
       {GST_H264_ENCRYPTION_MODE_AES_CBC,
        "AES Cipher Block Chaining mode encryption", "aes-cbc"},
+      {GST_H264_ENCRYPTION_MODE_AES_ECB_DECRYPT,
+       "ECB decrypt dirty. Added for development reasons, will be removed "
+       "later.",
+       "aes-ecb-dec"},
+      {GST_H264_ENCRYPTION_MODE_AES_CBC_DECRYPT,
+       "CBC decrypt dirty. Added for development reasons, will be removed "
+       "later.",
+       "aes-cbc-dec"},
       {0, NULL, NULL}};
   if (g_once_init_enter(&h264_encryption_mode_type)) {
     GType setup_value =
