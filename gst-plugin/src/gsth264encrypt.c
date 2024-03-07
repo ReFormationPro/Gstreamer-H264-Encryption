@@ -246,12 +246,14 @@ static GstFlowReturn gst_h264_encrypt_transform_ip(GstBaseTransform *base,
                GST_H264_ENCRYPTION_MODE_AES_ECB)) {
     if (G_UNLIKELY(!h264encrypt->key || !h264encrypt->iv)) {
       GST_ERROR_OBJECT(base, "Key or IV is not set!");
+      gst_buffer_unmap(outbuf, &map_info);
       return GST_FLOW_ERROR;
     }
     AES_init_ctx_iv(&ctx, h264encrypt->key->bytes, h264encrypt->iv->bytes);
   } else {
     if (G_UNLIKELY(!h264encrypt->key)) {
       GST_ERROR_OBJECT(base, "Key is not set!");
+      gst_buffer_unmap(outbuf, &map_info);
       return GST_FLOW_ERROR;
     }
     AES_init_ctx(&ctx, h264encrypt->key->bytes);
@@ -265,40 +267,60 @@ static GstFlowReturn gst_h264_encrypt_transform_ip(GstBaseTransform *base,
     // GST_H264_NAL_SLICE_DPB    = 3,
     // GST_H264_NAL_SLICE_DPC    = 4,
     // GST_H264_NAL_SLICE_IDR    = 5,
+    // Need to populate SPS/PPS of nalparser for parsing slice header later
+    gst_h264_parser_parse_nal(h264encrypt->nalparser, &nalu);
     if (nalu.type >= GST_H264_NAL_SLICE &&
         nalu.type <= GST_H264_NAL_SLICE_IDR) {
-      guint payload_offset = nalu.offset + nalu.header_bytes;
+      GstH264SliceHdr slice;
+      GstH264ParserResult parse_slice_hdr_result;
+      if ((parse_slice_hdr_result = gst_h264_parser_parse_slice_hdr(
+               h264encrypt->nalparser, &nalu, &slice, TRUE, TRUE)) !=
+          GST_H264_PARSER_OK) {
+        // FIXME Data passes unencrypted
+        GST_WARNING_OBJECT(h264encrypt,
+                           "Unable to parse slice header! This frame will pass "
+                           "unencrypted. Err: %d",
+                           (uint32_t)parse_slice_hdr_result);
+        gst_buffer_unmap(outbuf, &map_info);
+        return GST_FLOW_OK;
+      }
+      const uint32_t slice_header_size = ((slice.header_size - 1) / 8 + 1) +
+                                         slice.n_emulation_prevention_bytes;
+      guint payload_offset =
+          nalu.offset + nalu.header_bytes + slice_header_size;
+      const uint32_t payload_size =
+          nalu.size - nalu.header_bytes - slice_header_size;
       switch (h264encrypt->encryption_mode) {
         case GST_H264_ENCRYPTION_MODE_AES_CTR:
-          AES_CTR_xcrypt_buffer(&ctx, &nalu.data[payload_offset],
-                                nalu.size - nalu.header_bytes);
+          AES_CTR_xcrypt_buffer(&ctx, &nalu.data[payload_offset], payload_size);
           break;
         case GST_H264_ENCRYPTION_MODE_AES_CBC:
+          // FIXME This causes chrashes because CBC encrypts blockwise and
+          // causes buffer overflows
           AES_CBC_encrypt_buffer(&ctx, &nalu.data[payload_offset],
-                                 nalu.size - nalu.header_bytes);
+                                 payload_size);
           break;
         case GST_H264_ENCRYPTION_MODE_AES_ECB:
           // FIXME Last block has to be of size AES_BLOCKLEN too
           // Here, we instead just do not encrypt the last block.
           // We should be using padding here instead
-          const size_t encryption_block_size = nalu.size - nalu.header_bytes;
-          for (size_t i = 0; i < encryption_block_size - AES_BLOCKLEN;
+          for (size_t i = 0; i < payload_size - AES_BLOCKLEN;
                i += AES_BLOCKLEN) {
             AES_ECB_encrypt(&ctx, &nalu.data[payload_offset + i]);
           }
           break;
         case GST_H264_ENCRYPTION_MODE_AES_ECB_DECRYPT: {
           // FIXME Same as ecb encryption
-          const size_t encryption_block_size = nalu.size - nalu.header_bytes;
-          for (size_t i = 0; i < encryption_block_size - AES_BLOCKLEN;
+          for (size_t i = 0; i < payload_size - AES_BLOCKLEN;
                i += AES_BLOCKLEN) {
             AES_ECB_decrypt(&ctx, &nalu.data[payload_offset + i]);
           }
           break;
         }
         case GST_H264_ENCRYPTION_MODE_AES_CBC_DECRYPT: {
+          // FIXME Same as cbc encryption
           AES_CBC_decrypt_buffer(&ctx, &nalu.data[payload_offset],
-                                 nalu.size - nalu.header_bytes);
+                                 payload_size);
           break;
         }
       }

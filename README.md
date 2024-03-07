@@ -12,8 +12,9 @@ The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR 
 - Improve decryption process: Insert the IV into the access unit as SEI (Supplemental Enhancement Information) to enable the decryptor to use it for decryption.
 
 ## Issues
-- Stream Format Conversion: Converting between stream formats AVC and byte-stream breaks the stream.
 - H264Parse Element: Cannot insert a single h264parse that does supposedly nothing between encryptor and decryptor - Why? What does it change?
+- ECB mode does not encrypt the last block if it is not of size block size.
+- CBC mode has bufferoverflow issue which sometimes causes chrashes.
 
 ## Example Pipelines:
 - `gst-launch-1.0 videotestsrc ! nvh264enc ! \
@@ -23,6 +24,11 @@ The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR 
 - `gst-launch-1.0 videotestsrc ! nvh264enc ! \
     h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
     h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-cbc-dec ! \
+    nvh264dec ! glimagesink`
+- `gst-launch-1.0 videotestsrc ! nvh264enc ! \
+    h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
+    h264parse ! video/x-h264,stream-format=avc3 ! h264parse ! video/x-h264,stream-format=byte-stream ! \
+    h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
     nvh264dec ! glimagesink`
 
 #### *Original README.md is below:*
