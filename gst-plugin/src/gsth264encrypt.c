@@ -274,11 +274,14 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
                      (uint32_t)parse_slice_hdr_result);
     return FALSE;
   }
-  const uint32_t slice_header_size =
+  const gsize slice_header_size =
       ((slice.header_size - 1) / 8 + 1) + slice.n_emulation_prevention_bytes;
-  guint payload_offset = nalu->offset + nalu->header_bytes + slice_header_size;
-  const uint32_t payload_size =
+  gsize payload_offset = nalu->offset + nalu->header_bytes + slice_header_size;
+  const gsize payload_size =
       nalu->size - nalu->header_bytes - slice_header_size;
+  GST_DEBUG_OBJECT(h264encrypt,
+                   "Encrypting nal unit of type %d offset %ld size %ld",
+                   nalu->type, payload_offset, payload_size);
   switch (h264encrypt->encryption_mode) {
     case GST_H264_ENCRYPTION_MODE_AES_CTR:
       AES_CTR_xcrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
@@ -373,6 +376,7 @@ static GstFlowReturn gst_h264_encrypt_transform(GstBaseTransform *base,
    * 4- Copy SLICE into output, pad and encrypt and insert emulation prevention
    * bytes there 5- Finish
    */
+  GST_DEBUG_OBJECT(h264encrypt, "A buffer is received");
   if (GST_CLOCK_TIME_IS_VALID(GST_BUFFER_TIMESTAMP(inbuf)))
     gst_object_sync_values(GST_OBJECT(h264encrypt),
                            GST_BUFFER_TIMESTAMP(inbuf));
@@ -413,7 +417,7 @@ static GstFlowReturn gst_h264_encrypt_transform(GstBaseTransform *base,
     gst_h264_parser_parse_nal(h264encrypt->nalparser, &nalu);
     if (nalu.type >= GST_H264_NAL_SLICE &&
         nalu.type <= GST_H264_NAL_SLICE_IDR) {
-      if (inserted_sei == FALSE && FALSE) {
+      if (inserted_sei == FALSE) {
         // FIXME This somehow causes artifacts
         // Insert SEI right before the first slice
         // TODO Check if we need emulation three byte insertion
@@ -447,7 +451,20 @@ static GstFlowReturn gst_h264_encrypt_transform(GstBaseTransform *base,
                                  // parsing another one
       GstH264ParserResult parse_result = gst_h264_parser_identify_nalu(
           h264encrypt->nalparser, dest_map_info.data,
-          dest_offset - nalu_total_size, nalu_total_size, &dest_nalu);
+          dest_offset - nalu_total_size, dest_offset, &dest_nalu);
+      GST_DEBUG_OBJECT(
+          h264encrypt,
+          "Source nal unit is copied. Type %d sc_offset %d total_size "
+          "%d",
+          nalu.type, nalu.sc_offset,
+          nalu.size + (nalu.offset - nalu.sc_offset));
+      GST_DEBUG_OBJECT(
+          h264encrypt,
+          "Copied nal unit is parsed. Type %d sc_offset %d "
+          "total_size %d expected size %ld",
+          dest_nalu.type, dest_nalu.sc_offset,
+          dest_nalu.size + (dest_nalu.offset - dest_nalu.sc_offset),
+          nalu_total_size);
       if (parse_result != GST_H264_PARSER_NO_NAL_END &&
           parse_result != GST_H264_PARSER_OK) {
         GST_ERROR_OBJECT(h264encrypt, "Unable to parse destination nal unit");
