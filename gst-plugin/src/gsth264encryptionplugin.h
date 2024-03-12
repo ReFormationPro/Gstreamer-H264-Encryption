@@ -49,6 +49,9 @@
 
 G_BEGIN_DECLS
 
+// Has to be 16 bytes, excluding the null byte
+#define GST_H264_ENCRYPT_IV_SEI_UUID "GSTH264ENCRYPTIV"
+
 G_END_DECLS
 
 #endif /* __GST_PLUGIN_TEMPLATE_H__ */

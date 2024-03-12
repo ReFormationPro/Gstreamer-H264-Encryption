@@ -12,7 +12,6 @@ The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR 
 - Improve decryption process: Insert the IV into the access unit as SEI (Supplemental Enhancement Information) to enable the decryptor to use it for decryption.
 
 ## Issues
-- H264Parse Element: Cannot insert a single h264parse that does supposedly nothing between encryptor and decryptor - Why? What does it change?
 - ECB mode does not encrypt the last block if it is not of size block size.
 - CBC mode has bufferoverflow issue which sometimes causes chrashes.
 

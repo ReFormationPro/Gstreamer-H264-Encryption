@@ -44,6 +44,7 @@
 #include "ciphers/aes.h"
 #include "gsth264encrypt.h"
 #include "gsth264encryptionmode.h"
+#include "gsth264encryptionplugin.h"
 #include "gsth264encryptiontypes.h"
 
 GST_DEBUG_CATEGORY_STATIC(gst_h264_encrypt_debug);
@@ -91,8 +92,11 @@ static void gst_h264_encrypt_get_property(GObject *object, guint prop_id,
 static void gst_h264_encrypt_dispose(GObject *object);
 static void gst_h264_encrypt_finalize(GObject *object);
 
-static GstFlowReturn gst_h264_encrypt_transform_ip(GstBaseTransform *base,
-                                                   GstBuffer *outbuf);
+static GstFlowReturn gst_h264_encrypt_prepare_output_buffer(
+    GstBaseTransform *trans, GstBuffer *input, GstBuffer **outbuf);
+static GstFlowReturn gst_h264_encrypt_transform(GstBaseTransform *base,
+                                                GstBuffer *inbuf,
+                                                GstBuffer *outbuf);
 
 /* GObject vmethod implementations */
 
@@ -141,8 +145,10 @@ static void gst_h264_encrypt_class_init(GstH264EncryptClass *klass) {
   gst_element_class_add_pad_template(
       gstelement_class, gst_static_pad_template_get(&sink_template));
 
-  GST_BASE_TRANSFORM_CLASS(klass)->transform_ip =
-      GST_DEBUG_FUNCPTR(gst_h264_encrypt_transform_ip);
+  GST_BASE_TRANSFORM_CLASS(klass)->transform =
+      GST_DEBUG_FUNCPTR(gst_h264_encrypt_transform);
+  GST_BASE_TRANSFORM_CLASS(klass)->prepare_output_buffer =
+      GST_DEBUG_FUNCPTR(gst_h264_encrypt_prepare_output_buffer);
 
   GST_DEBUG_CATEGORY_INIT(gst_h264_encrypt_debug, "h264encrypt", 0,
                           "h264encrypt general logs");
@@ -227,37 +233,173 @@ static void gst_h264_encrypt_get_property(GObject *object, guint prop_id,
 
 /* this function does the actual processing
  */
-static GstFlowReturn gst_h264_encrypt_transform_ip(GstBaseTransform *base,
-                                                   GstBuffer *outbuf) {
+static GstFlowReturn gst_h264_encrypt_prepare_output_buffer(
+    GstBaseTransform *trans, GstBuffer *input, GstBuffer **outbuf) {
+  // TODO Calculate buffer size better
+  gsize input_size = gst_buffer_get_size(input);
+  // Also account for SEI, changable AES_BLOCKLEN and emulation bytes
+  *outbuf = gst_buffer_new_and_alloc(input_size + 40 + AES_BLOCKLEN + 30);
+  return GST_FLOW_OK;
+}
+
+static GstMemory *gst_h264_encrypt_create_iv_sei_memory(
+    guint start_code_prefix_length, const guint8 *iv, guint iv_size) {
+  GArray *messages =
+      g_array_sized_new(FALSE, FALSE, sizeof(GstH264SEIMessage), 1);
+  messages->len = 1;
+  GstH264SEIMessage *sei_message =
+      &g_array_index(messages, GstH264SEIMessage, 0);
+  sei_message->payloadType = GST_H264_SEI_USER_DATA_UNREGISTERED;
+  GstH264UserDataUnregistered *udu =
+      &sei_message->payload.user_data_unregistered;
+  memcpy(udu->uuid, GST_H264_ENCRYPT_IV_SEI_UUID, sizeof(udu->uuid));
+  udu->data = iv;
+  udu->size = iv_size;
+  // TODO avc/byte-stream
+  GstMemory *sei_memory =
+      gst_h264_create_sei_memory(start_code_prefix_length, messages);
+  g_array_free(messages, TRUE);
+  return sei_memory;
+}
+
+static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
+                                                    struct AES_ctx *ctx,
+                                                    GstH264NalUnit *nalu) {
+  GstH264SliceHdr slice;
+  GstH264ParserResult parse_slice_hdr_result;
+  if ((parse_slice_hdr_result = gst_h264_parser_parse_slice_hdr(
+           h264encrypt->nalparser, nalu, &slice, TRUE, TRUE)) !=
+      GST_H264_PARSER_OK) {
+    GST_ERROR_OBJECT(h264encrypt, "Unable to parse slice header! Err: %d",
+                     (uint32_t)parse_slice_hdr_result);
+    return FALSE;
+  }
+  const uint32_t slice_header_size =
+      ((slice.header_size - 1) / 8 + 1) + slice.n_emulation_prevention_bytes;
+  guint payload_offset = nalu->offset + nalu->header_bytes + slice_header_size;
+  const uint32_t payload_size =
+      nalu->size - nalu->header_bytes - slice_header_size;
+  switch (h264encrypt->encryption_mode) {
+    case GST_H264_ENCRYPTION_MODE_AES_CTR:
+      AES_CTR_xcrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
+      break;
+    case GST_H264_ENCRYPTION_MODE_AES_CBC:
+      // FIXME This causes chrashes because CBC encrypts blockwise and
+      // causes buffer overflows
+      AES_CBC_encrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
+      break;
+    case GST_H264_ENCRYPTION_MODE_AES_ECB:
+      // FIXME Last block has to be of size AES_BLOCKLEN too
+      // Here, we instead just do not encrypt the last block.
+      // We should be using padding here instead
+      for (size_t i = 0; i < payload_size - AES_BLOCKLEN; i += AES_BLOCKLEN) {
+        AES_ECB_encrypt(ctx, &nalu->data[payload_offset + i]);
+      }
+      break;
+    case GST_H264_ENCRYPTION_MODE_AES_ECB_DECRYPT: {
+      // FIXME Same as ecb encryption
+      for (size_t i = 0; i < payload_size - AES_BLOCKLEN; i += AES_BLOCKLEN) {
+        AES_ECB_decrypt(ctx, &nalu->data[payload_offset + i]);
+      }
+      break;
+    }
+    case GST_H264_ENCRYPTION_MODE_AES_CBC_DECRYPT: {
+      // FIXME Same as cbc encryption
+      AES_CBC_decrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
+      break;
+    }
+  }
+  return TRUE;
+}
+
+inline static size_t _copy_memory_bytes(GstMapInfo *dest_map_info,
+                                        GstMapInfo *src_map_info,
+                                        size_t *dest_offset, size_t src_offset,
+                                        size_t size) {
+  if (dest_map_info->maxsize < *dest_offset + size) {
+    GST_ERROR("Unable to copy as destination is too small");
+    return 0;
+  }
+  memcpy(&dest_map_info->data[*dest_offset], &src_map_info->data[src_offset],
+         size);
+  *dest_offset += size;
+  return size;
+}
+
+inline static size_t _copy_nalu_bytes(GstMapInfo *dest_map_info,
+                                      GstH264NalUnit *nalu,
+                                      size_t *dest_offset) {
+  size_t nalu_total_size = nalu->size + (nalu->offset - nalu->sc_offset);
+  if (dest_map_info->maxsize < *dest_offset + nalu_total_size) {
+    GST_ERROR("Unable to copy as destination is too small");
+    return 0;
+  }
+  memcpy(&dest_map_info->data[*dest_offset], &nalu->data[nalu->sc_offset],
+         nalu_total_size);
+  *dest_offset += nalu_total_size;
+  return nalu_total_size;
+}
+
+static GstFlowReturn gst_h264_encrypt_transform(GstBaseTransform *base,
+                                                GstBuffer *inbuf,
+                                                GstBuffer *outbuf) {
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(base);
   GstH264NalUnit nalu;
   GstH264ParserResult result;
   struct AES_ctx ctx;
-  GstMapInfo map_info;
+  GstMapInfo map_info, dest_map_info;
 
-  if (GST_CLOCK_TIME_IS_VALID(GST_BUFFER_TIMESTAMP(outbuf)))
+  /**
+   * TODO
+   * 1- Copy all NAL units that precede SEI
+   * 2- Create SEI Memory for unregistered user data (FIXME Are multiple SEI
+   * NALUs allowed?)
+   * 3- Put SEI Memory into outbuf
+   *
+   * For each SLICE NAL unit:
+   * 4- Calculate encrypted NALu size:
+   *    - Padding will increase byte size
+   *    - Account for a fixed number of emulation prevention bytes
+   * 5- Encrypt NAL payload
+   * 6- Insert emulation bytes (TODO Maybe make 5-6 in one pass?)
+   * 7- Copy the padded, encrytped, emulation prevention byte inserted memory
+   */
+
+  /**
+   * TODO Easier
+   * 1- Find the first SLICE
+   * 2- Insert memory before and SEI
+   * 3- Calculate memory for the rest of the bytes (so complete nal parsing)
+   * 4- Copy SLICE into output, pad and encrypt and insert emulation prevention
+   * bytes there 5- Finish
+   */
+  if (GST_CLOCK_TIME_IS_VALID(GST_BUFFER_TIMESTAMP(inbuf)))
     gst_object_sync_values(GST_OBJECT(h264encrypt),
-                           GST_BUFFER_TIMESTAMP(outbuf));
-  if (G_UNLIKELY(!gst_buffer_map(outbuf, &map_info, GST_MAP_READWRITE))) {
-    GST_ERROR_OBJECT(base, "Unable to map buffer for rw!");
+                           GST_BUFFER_TIMESTAMP(inbuf));
+  if (G_UNLIKELY(!gst_buffer_map(inbuf, &map_info, GST_MAP_READ))) {
+    GST_ERROR_OBJECT(base, "Unable to map input buffer for read!");
+    return GST_FLOW_ERROR;
+  }
+  if (G_UNLIKELY(!gst_buffer_map(outbuf, &dest_map_info, GST_MAP_READWRITE))) {
+    GST_ERROR_OBJECT(base, "Unable to map output buffer for rw!");
     return GST_FLOW_ERROR;
   }
   if (G_LIKELY(h264encrypt->encryption_mode !=
                GST_H264_ENCRYPTION_MODE_AES_ECB)) {
     if (G_UNLIKELY(!h264encrypt->key || !h264encrypt->iv)) {
       GST_ERROR_OBJECT(base, "Key or IV is not set!");
-      gst_buffer_unmap(outbuf, &map_info);
-      return GST_FLOW_ERROR;
+      goto error;
     }
     AES_init_ctx_iv(&ctx, h264encrypt->key->bytes, h264encrypt->iv->bytes);
   } else {
     if (G_UNLIKELY(!h264encrypt->key)) {
       GST_ERROR_OBJECT(base, "Key is not set!");
-      gst_buffer_unmap(outbuf, &map_info);
-      return GST_FLOW_ERROR;
+      goto error;
     }
     AES_init_ctx(&ctx, h264encrypt->key->bytes);
   }
+  size_t dest_offset = 0;
+  gboolean inserted_sei = FALSE;
   result = gst_h264_parser_identify_nalu(h264encrypt->nalparser, map_info.data,
                                          0, map_info.size, &nalu);
   while (result == GST_H264_PARSER_OK || result == GST_H264_PARSER_NO_NAL_END) {
@@ -271,88 +413,93 @@ static GstFlowReturn gst_h264_encrypt_transform_ip(GstBaseTransform *base,
     gst_h264_parser_parse_nal(h264encrypt->nalparser, &nalu);
     if (nalu.type >= GST_H264_NAL_SLICE &&
         nalu.type <= GST_H264_NAL_SLICE_IDR) {
-      GstH264SliceHdr slice;
-      GstH264ParserResult parse_slice_hdr_result;
-      if ((parse_slice_hdr_result = gst_h264_parser_parse_slice_hdr(
-               h264encrypt->nalparser, &nalu, &slice, TRUE, TRUE)) !=
-          GST_H264_PARSER_OK) {
-        // FIXME Data passes unencrypted
-        GST_WARNING_OBJECT(h264encrypt,
-                           "Unable to parse slice header! This frame will pass "
-                           "unencrypted. Err: %d",
-                           (uint32_t)parse_slice_hdr_result);
-        gst_buffer_unmap(outbuf, &map_info);
-        return GST_FLOW_OK;
+      if (inserted_sei == FALSE && FALSE) {
+        // FIXME This somehow causes artifacts
+        // Insert SEI right before the first slice
+        // TODO Check if we need emulation three byte insertion
+        GstMapInfo memory_map_info;
+        GstMemory *sei_memory = gst_h264_encrypt_create_iv_sei_memory(
+            nalu.offset - nalu.sc_offset, h264encrypt->iv->bytes, AES_BLOCKLEN);
+        if (!gst_memory_map(sei_memory, &memory_map_info, GST_MAP_READ)) {
+          GST_ERROR("Unable to map sei memory for read!");
+          gst_mini_object_unref(GST_MINI_OBJECT(sei_memory));
+          goto error;
+        }
+        if (_copy_memory_bytes(&dest_map_info, &memory_map_info, &dest_offset,
+                               0, memory_map_info.size) == 0) {
+          gst_memory_unmap(sei_memory, &memory_map_info);
+          gst_mini_object_unref(GST_MINI_OBJECT(sei_memory));
+          goto error;
+        }
+        gst_memory_unmap(sei_memory, &memory_map_info);
+        gst_mini_object_unref(GST_MINI_OBJECT(sei_memory));
+        inserted_sei = TRUE;
       }
-      const uint32_t slice_header_size = ((slice.header_size - 1) / 8 + 1) +
-                                         slice.n_emulation_prevention_bytes;
-      guint payload_offset =
-          nalu.offset + nalu.header_bytes + slice_header_size;
-      const uint32_t payload_size =
-          nalu.size - nalu.header_bytes - slice_header_size;
-      switch (h264encrypt->encryption_mode) {
-        case GST_H264_ENCRYPTION_MODE_AES_CTR:
-          AES_CTR_xcrypt_buffer(&ctx, &nalu.data[payload_offset], payload_size);
-          break;
-        case GST_H264_ENCRYPTION_MODE_AES_CBC:
-          // FIXME This causes chrashes because CBC encrypts blockwise and
-          // causes buffer overflows
-          AES_CBC_encrypt_buffer(&ctx, &nalu.data[payload_offset],
-                                 payload_size);
-          break;
-        case GST_H264_ENCRYPTION_MODE_AES_ECB:
-          // FIXME Last block has to be of size AES_BLOCKLEN too
-          // Here, we instead just do not encrypt the last block.
-          // We should be using padding here instead
-          for (size_t i = 0; i < payload_size - AES_BLOCKLEN;
-               i += AES_BLOCKLEN) {
-            AES_ECB_encrypt(&ctx, &nalu.data[payload_offset + i]);
-          }
-          break;
-        case GST_H264_ENCRYPTION_MODE_AES_ECB_DECRYPT: {
-          // FIXME Same as ecb encryption
-          for (size_t i = 0; i < payload_size - AES_BLOCKLEN;
-               i += AES_BLOCKLEN) {
-            AES_ECB_decrypt(&ctx, &nalu.data[payload_offset + i]);
-          }
-          break;
-        }
-        case GST_H264_ENCRYPTION_MODE_AES_CBC_DECRYPT: {
-          // FIXME Same as cbc encryption
-          AES_CBC_decrypt_buffer(&ctx, &nalu.data[payload_offset],
-                                 payload_size);
-          break;
-        }
+      // Copy the slice into dest
+      size_t nalu_total_size;
+      if ((nalu_total_size =
+               _copy_nalu_bytes(&dest_map_info, &nalu, &dest_offset)) == 0) {
+        goto error;
+      }
+      // TODO Apply padding
+      // Encrypt dest nalu
+      GstH264NalUnit dest_nalu;  // NOTE Maybe we can modify nalu instead of
+                                 // parsing another one
+      GstH264ParserResult parse_result = gst_h264_parser_identify_nalu(
+          h264encrypt->nalparser, dest_map_info.data,
+          dest_offset - nalu_total_size, nalu_total_size, &dest_nalu);
+      if (parse_result != GST_H264_PARSER_NO_NAL_END &&
+          parse_result != GST_H264_PARSER_OK) {
+        GST_ERROR_OBJECT(h264encrypt, "Unable to parse destination nal unit");
+        goto error;
+      }
+      if (!gst_h264_encrypt_encrypt_slice_nalu(h264encrypt, &ctx, &dest_nalu)) {
+        GST_ERROR_OBJECT(h264encrypt, "Failed to encrypt slice nal unit");
+        goto error;
+      }
+      // TODO Insert emulation three bytes here
+    } else {
+      // Copy non-slice nal unit
+      size_t nalu_total_size = nalu.size + (nalu.offset - nalu.sc_offset);
+      if (_copy_memory_bytes(&dest_map_info, &map_info, &dest_offset,
+                             nalu.sc_offset, nalu_total_size) == 0) {
+        goto error;
       }
     }
     // TODO Fix emulation 3 bytes
-    uint32_t state = 0xffffffff;
-    for (size_t i = 0; i < nalu.size - nalu.header_bytes; i++) {
-      state = (state << 8) |
-              (nalu.data[nalu.offset + nalu.header_bytes + i] & 0xff);
-      switch (state & 0x00ffffff) {
-        case 0x00000000:
-        case 0x00000001:
-        case 0x00000002:
-        case 0x00000003: {
-          GST_ERROR_OBJECT(
-              h264encrypt,
-              "Emulation prevention byte is found in the encrypted result!");
-          // gst_buffer_unmap(outbuf, &map_info);
-          // return GST_FLOW_ERROR;
-
-          // Just try to make it work even if we are deliberately corrupting the
-          // video. transform_ip does not allow us to change buffer size
-          // nalu.data[nalu.offset + nalu.header_bytes + i - 1] = 1;
-          state = 0xffffff00;
-        }
-      }
-    }
+    // uint32_t state = 0xffffffff;
+    // for (size_t i = 0; i < nalu.size - nalu.header_bytes; i++) {
+    //   state = (state << 8) |
+    //           (nalu.data[nalu.offset + nalu.header_bytes + i] & 0xff);
+    //   switch (state & 0x00ffffff) {
+    //     case 0x00000000:
+    //     case 0x00000001:
+    //     case 0x00000002:
+    //     case 0x00000003: {
+    //       GST_ERROR_OBJECT(
+    //           h264encrypt,
+    //           "Emulation prevention byte is found in the encrypted result!");
+    //       // goto error;
+    //       // Just try to make it work even if we are deliberately corrupting
+    //       the
+    //       // video. transform_ip does not allow us to change buffer size
+    //       // nalu.data[nalu.offset + nalu.header_bytes + i - 1] = 1;
+    //       state = 0xffffff00;
+    //     }
+    //   }
+    // }
     result =
         gst_h264_parser_identify_nalu(h264encrypt->nalparser, map_info.data,
                                       nalu.offset + nalu.size,  //
                                       map_info.size, &nalu);
   }
-  gst_buffer_unmap(outbuf, &map_info);
+  gst_buffer_unmap(inbuf, &map_info);
+  gst_buffer_unmap(outbuf, &dest_map_info);
+  gst_buffer_set_size(outbuf, dest_offset);
   return GST_FLOW_OK;
+error: {
+  gst_buffer_unmap(inbuf, &map_info);
+  gst_buffer_unmap(outbuf, &dest_map_info);
+  return GST_FLOW_ERROR;
+}
 }

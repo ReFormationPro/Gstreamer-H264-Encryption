@@ -43,8 +43,8 @@
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
  */
-#ifndef __GST_PLUGIN_TEMPLATE_H__
-#define __GST_PLUGIN_TEMPLATE_H__
+#ifndef __GST_H264_ENCRYPTION_MODE_H__
+#define __GST_H264_ENCRYPTION_MODE_H__
 
 #include <gst/gst.h>
 
@@ -63,4 +63,4 @@ GType gst_h264_encryption_mode_get_type(void);
 
 G_END_DECLS
 
-#endif /* __GST_PLUGIN_TEMPLATE_H__ */
+#endif /* __GST_H264_ENCRYPTION_MODE_H__ */
