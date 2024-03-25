@@ -37,6 +37,15 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE(GstH264EncryptionBase, gst_h264_encryption_base, GST,
                      H264_ENCRYPTION_BASE, GstBaseTransform)
 
+typedef void (*enter_base_transform_func)(
+    GstH264EncryptionBase *encryption_base);
+typedef gboolean (*before_nalu_copy_func)(
+    GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
+    GstMapInfo *dest_map_info, size_t *dest_offset);
+typedef gboolean (*process_slice_nalu_func)(
+    GstH264EncryptionBase *encryption_base, struct AES_ctx *ctx,
+    GstH264NalUnit *dest_nalu, GstMapInfo *dest_map_info, size_t *dest_offset);
+
 struct _GstH264EncryptionBase {
   GstBaseTransform element;
 
@@ -44,6 +53,10 @@ struct _GstH264EncryptionBase {
   GstH264EncryptionMode encryption_mode;
   GstEncryptionKey *key;
   GstEncryptionIV *iv;
+
+  enter_base_transform_func enter_base_transform;
+  before_nalu_copy_func before_nalu_copy;
+  process_slice_nalu_func process_slice_nalu;
 };
 
 G_END_DECLS
