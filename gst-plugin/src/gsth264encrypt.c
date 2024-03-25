@@ -262,9 +262,53 @@ static GstMemory *gst_h264_encrypt_create_iv_sei_memory(
   return sei_memory;
 }
 
+/**
+ * Returns the number of bytes used for padding.
+ *
+ * If returns 0, max size was less than required bytes and nothing is written.
+ */
+inline static gint _apply_padding(uint8_t *data, size_t size, size_t max_size) {
+  int i;
+  gint padding_byte_count = AES_BLOCKLEN - (size % AES_BLOCKLEN);
+  if (padding_byte_count + size >= max_size) {
+    return 0;
+  }
+  data[size++] = 0x80;
+  for (i = 1; i < padding_byte_count; i++) {
+    data[size++] = 0;
+  }
+  return i;
+}
+
+/**
+ * Removes the padding if exists and returns padding byte count.
+ *
+ * Assumes data is padded at byte level, so it does not check individual bits.
+ */
+inline static gint _remove_padding(uint8_t *data, size_t size) {
+  for (int i = size - 1; i >= 0; i--) {
+    switch (data[i]) {
+      case 0:
+        continue;
+      case 0x80: {
+        data[i] = 0;
+        return size - i;
+      }
+      default: {
+        GST_ERROR("Padding is not removed! Invalid byte found: %d", data[i]);
+        break;
+      }
+    }
+  }
+  // All zeros, not found
+  return 0;
+}
+
 static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
                                                     struct AES_ctx *ctx,
-                                                    GstH264NalUnit *nalu) {
+                                                    GstH264NalUnit *nalu,
+                                                    GstMapInfo *map_info,
+                                                    size_t *dest_offset) {
   GstH264SliceHdr slice;
   GstH264ParserResult parse_slice_hdr_result;
   if ((parse_slice_hdr_result = gst_h264_parser_parse_slice_hdr(
@@ -277,41 +321,93 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
   const gsize slice_header_size =
       ((slice.header_size - 1) / 8 + 1) + slice.n_emulation_prevention_bytes;
   gsize payload_offset = nalu->offset + nalu->header_bytes + slice_header_size;
-  const gsize payload_size =
-      nalu->size - nalu->header_bytes - slice_header_size;
+  gsize payload_size = nalu->size - nalu->header_bytes - slice_header_size;
   GST_DEBUG_OBJECT(h264encrypt,
                    "Encrypting nal unit of type %d offset %ld size %ld",
                    nalu->type, payload_offset, payload_size);
+  // Apply padding
+  int padding_byte_count =
+      _apply_padding(nalu->data, payload_size, map_info->maxsize);
+  if (G_UNLIKELY(padding_byte_count == 0)) {
+    GST_ERROR_OBJECT(h264encrypt, "Not enough space for padding!");
+    return FALSE;
+  }
+  *dest_offset += padding_byte_count;
+  payload_size += padding_byte_count;
+  // Encrypt
   switch (h264encrypt->encryption_mode) {
     case GST_H264_ENCRYPTION_MODE_AES_CTR:
       AES_CTR_xcrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
       break;
     case GST_H264_ENCRYPTION_MODE_AES_CBC:
-      // FIXME This causes chrashes because CBC encrypts blockwise and
-      // causes buffer overflows
       AES_CBC_encrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
       break;
     case GST_H264_ENCRYPTION_MODE_AES_ECB:
-      // FIXME Last block has to be of size AES_BLOCKLEN too
-      // Here, we instead just do not encrypt the last block.
-      // We should be using padding here instead
-      for (size_t i = 0; i < payload_size - AES_BLOCKLEN; i += AES_BLOCKLEN) {
+      for (size_t i = 0; i < payload_size; i += AES_BLOCKLEN) {
         AES_ECB_encrypt(ctx, &nalu->data[payload_offset + i]);
       }
       break;
+  }
+  return TRUE;
+}
+
+/**
+ * Decrypts padded nal unit and updates dest_offset.
+ *
+ * @nalu: Destination NAL unit
+ */
+static gboolean gst_h264_encrypt_decrypt_slice_nalu(GstH264Encrypt *h264encrypt,
+                                                    struct AES_ctx *ctx,
+                                                    GstH264NalUnit *nalu,
+                                                    size_t *dest_offset) {
+  GstH264SliceHdr slice;
+  GstH264ParserResult parse_slice_hdr_result;
+  if ((parse_slice_hdr_result = gst_h264_parser_parse_slice_hdr(
+           h264encrypt->nalparser, nalu, &slice, TRUE, TRUE)) !=
+      GST_H264_PARSER_OK) {
+    GST_ERROR_OBJECT(h264encrypt, "Unable to parse slice header! Err: %d",
+                     (uint32_t)parse_slice_hdr_result);
+    return FALSE;
+  }
+  const gsize slice_header_size =
+      ((slice.header_size - 1) / 8 + 1) + slice.n_emulation_prevention_bytes;
+  gsize payload_offset = nalu->offset + nalu->header_bytes + slice_header_size;
+  gsize payload_size = nalu->size - nalu->header_bytes - slice_header_size;
+  GST_DEBUG_OBJECT(h264encrypt,
+                   "Decrypting nal unit of type %d offset %ld size %ld",
+                   nalu->type, payload_offset, payload_size);
+  if (payload_size % AES_BLOCKLEN != 0) {
+    GST_ERROR_OBJECT(h264encrypt,
+                     "Encrypted block size is not a multiple of "
+                     "AES_BLOCKLEN=%d. Not attempting to decrypt.",
+                     AES_BLOCKLEN);
+    return FALSE;
+  }
+  // Decrypt
+  switch (h264encrypt->encryption_mode) {
+    case GST_H264_ENCRYPTION_MODE_AES_CTR:
+      AES_CTR_xcrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
+      break;
     case GST_H264_ENCRYPTION_MODE_AES_ECB_DECRYPT: {
-      // FIXME Same as ecb encryption
-      for (size_t i = 0; i < payload_size - AES_BLOCKLEN; i += AES_BLOCKLEN) {
+      for (size_t i = 0; i < payload_size; i += AES_BLOCKLEN) {
         AES_ECB_decrypt(ctx, &nalu->data[payload_offset + i]);
       }
       break;
     }
     case GST_H264_ENCRYPTION_MODE_AES_CBC_DECRYPT: {
-      // FIXME Same as cbc encryption
       AES_CBC_decrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
       break;
     }
   }
+  // Remove padding
+  // Only last AES_BLOCKLEN many bytes can be padding bytes
+  int padding_byte_count =
+      _remove_padding(&nalu->data[payload_size - AES_BLOCKLEN], AES_BLOCKLEN);
+  if (G_UNLIKELY(padding_byte_count == 0)) {
+    GST_WARNING_OBJECT(h264encrypt, "Padding is not found, data is invalid.");
+  }
+  // We should overwrite padding bytes
+  *dest_offset -= padding_byte_count;
   return TRUE;
 }
 
@@ -445,7 +541,6 @@ static GstFlowReturn gst_h264_encrypt_transform(GstBaseTransform *base,
                _copy_nalu_bytes(&dest_map_info, &nalu, &dest_offset)) == 0) {
         goto error;
       }
-      // TODO Apply padding
       // Encrypt dest nalu
       GstH264NalUnit dest_nalu;  // NOTE Maybe we can modify nalu instead of
                                  // parsing another one
@@ -470,9 +565,21 @@ static GstFlowReturn gst_h264_encrypt_transform(GstBaseTransform *base,
         GST_ERROR_OBJECT(h264encrypt, "Unable to parse destination nal unit");
         goto error;
       }
-      if (!gst_h264_encrypt_encrypt_slice_nalu(h264encrypt, &ctx, &dest_nalu)) {
-        GST_ERROR_OBJECT(h264encrypt, "Failed to encrypt slice nal unit");
-        goto error;
+      if (h264encrypt->encryption_mode ==
+              GST_H264_ENCRYPTION_MODE_AES_ECB_DECRYPT ||
+          h264encrypt->encryption_mode ==
+              GST_H264_ENCRYPTION_MODE_AES_CBC_DECRYPT) {
+        if (!gst_h264_encrypt_decrypt_slice_nalu(h264encrypt, &ctx, &dest_nalu,
+                                                 &dest_offset)) {
+          GST_ERROR_OBJECT(h264encrypt, "Failed to decrypt slice nal unit");
+          goto error;
+        }
+      } else {
+        if (!gst_h264_encrypt_encrypt_slice_nalu(
+                h264encrypt, &ctx, &dest_nalu, &dest_map_info, &dest_offset)) {
+          GST_ERROR_OBJECT(h264encrypt, "Failed to encrypt slice nal unit");
+          goto error;
+        }
       }
       // TODO Insert emulation three bytes here
     } else {
