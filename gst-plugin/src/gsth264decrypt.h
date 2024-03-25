@@ -37,7 +37,7 @@ G_BEGIN_DECLS
 GST_ELEMENT_REGISTER_DECLARE(h264decrypt);
 #define GST_TYPE_H264_DECRYPT (gst_h264_decrypt_get_type())
 G_DECLARE_FINAL_TYPE(GstH264Decrypt, gst_h264_decrypt, GST, H264_DECRYPT,
-                     GstBaseTransform)
+                     GstH264EncryptionBase)
 // #define GST_H264_SRC(obj)
 // (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_BASE_SRC,GstBaseSrc)) #define
 // GST_BASE_SRC_CLASS(klass)

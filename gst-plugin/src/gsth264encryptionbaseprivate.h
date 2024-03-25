@@ -25,6 +25,8 @@
 
 #include <gst/gst.h>
 
+#include "gsth264encryptionbase.h"
+
 G_BEGIN_DECLS
 
 enum {
@@ -34,11 +36,22 @@ enum {
   PROP_KEY,
 };
 
+typedef struct GstH264EncryptionUtils {
+  GstH264NalParser *nalparser;
+  GstH264EncryptionMode encryption_mode;
+  GstEncryptionKey *key;
+  GstEncryptionIV *iv;
+} GstH264EncryptionUtils;
+
 size_t _copy_memory_bytes(GstMapInfo *dest_map_info, GstMapInfo *src_map_info,
                           size_t *dest_offset, size_t src_offset, size_t size);
 
 size_t _copy_nalu_bytes(GstMapInfo *dest_map_info, GstH264NalUnit *nalu,
                         size_t *dest_offset);
+
+// NOTE This is a bad work-around for making protected fields
+GstH264EncryptionUtils *gst_h264_encryption_base_get_encryption_utils(
+    GstH264EncryptionBase *);
 
 G_END_DECLS
 

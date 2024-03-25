@@ -51,7 +51,6 @@
 
 GST_DEBUG_CATEGORY_STATIC(gst_h264_encrypt_debug);
 #define GST_CAT_DEFAULT gst_h264_encrypt_debug
-#define DEFAULT_ENCRYPTION_MODE GST_H264_ENCRYPTION_MODE_AES_CTR
 
 static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE(
     "sink", GST_PAD_SINK, GST_PAD_ALWAYS,
@@ -75,15 +74,33 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
                                                     GstH264NalUnit *nalu,
                                                     GstMapInfo *map_info,
                                                     size_t *dest_offset);
+
+void gst_h264_encrypt_enter_base_transform(
+    GstH264EncryptionBase *encryption_base);
+gboolean gst_h264_encrypt_before_nalu_copy(
+    GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
+    GstMapInfo *dest_map_info, size_t *dest_offset);
+gboolean gst_h264_encrypt_process_slice_nalu(
+    GstH264EncryptionBase *encryption_base, struct AES_ctx *ctx,
+    GstH264NalUnit *dest_nalu, GstMapInfo *dest_map_info, size_t *dest_offset);
 /* GObject vmethod implementations */
 
 /* initialize the h264encrypt's class */
 static void gst_h264_encrypt_class_init(GstH264EncryptClass *klass) {
   // GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
+  GstH264EncryptionBaseClass *gsth264encryptionbase_class;
 
   // gobject_class = (GObjectClass *)klass;
   gstelement_class = (GstElementClass *)klass;
+  gsth264encryptionbase_class = (GstH264EncryptionBaseClass *)klass;
+
+  gsth264encryptionbase_class->enter_base_transform =
+      gst_h264_encrypt_enter_base_transform;
+  gsth264encryptionbase_class->before_nalu_copy =
+      gst_h264_encrypt_before_nalu_copy;
+  gsth264encryptionbase_class->process_slice_nalu =
+      gst_h264_encrypt_process_slice_nalu;
 
   gst_element_class_set_details_simple(
       gstelement_class, "h264encrypt", "Codec/Encryptor/Video",
@@ -99,8 +116,6 @@ static void gst_h264_encrypt_class_init(GstH264EncryptClass *klass) {
 
   GST_DEBUG_CATEGORY_INIT(gst_h264_encrypt_debug, "h264encrypt", 0,
                           "h264encrypt general logs");
-
-  gst_type_mark_as_plugin_api(GST_TYPE_H264_ENCRYPTION_MODE, 0);
 }
 
 void gst_h264_encrypt_enter_base_transform(
@@ -113,14 +128,15 @@ gboolean gst_h264_encrypt_before_nalu_copy(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
     GstMapInfo *dest_map_info, size_t *dest_offset) {
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(encryption_base);
+  GstH264EncryptionUtils *utils =
+      gst_h264_encryption_base_get_encryption_utils(encryption_base);
   if (h264encrypt->inserted_sei == FALSE) {
     // FIXME This somehow causes artifacts
     // Insert SEI right before the first slice
     // TODO Check if we need emulation three byte insertion
     GstMapInfo memory_map_info;
     GstMemory *sei_memory = gst_h264_encrypt_create_iv_sei_memory(
-        src_nalu->offset - src_nalu->sc_offset, encryption_base->iv->bytes,
-        AES_BLOCKLEN);
+        src_nalu->offset - src_nalu->sc_offset, utils->iv->bytes, AES_BLOCKLEN);
     if (!gst_memory_map(sei_memory, &memory_map_info, GST_MAP_READ)) {
       GST_ERROR("Unable to map sei memory for read!");
       gst_mini_object_unref(GST_MINI_OBJECT(sei_memory));
@@ -156,11 +172,7 @@ gboolean gst_h264_encrypt_process_slice_nalu(
  * initialize instance structure
  */
 static void gst_h264_encrypt_init(GstH264Encrypt *h264encrypt) {
-  GstH264EncryptionBase *encryption_base =
-      GST_H264_ENCRYPTION_BASE(h264encrypt);
-  encryption_base->enter_base_transform = gst_h264_encrypt_enter_base_transform;
-  encryption_base->before_nalu_copy = gst_h264_encrypt_before_nalu_copy;
-  encryption_base->process_slice_nalu = gst_h264_encrypt_process_slice_nalu;
+  h264encrypt->inserted_sei = FALSE;
 }
 
 /* GstBaseTransform vmethod implementations */
@@ -224,9 +236,10 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
   GstH264ParserResult parse_slice_hdr_result;
   GstH264EncryptionBase *encryption_base =
       GST_H264_ENCRYPTION_BASE(h264encrypt);
+  GstH264EncryptionUtils *utils =
+      gst_h264_encryption_base_get_encryption_utils(encryption_base);
   if ((parse_slice_hdr_result = gst_h264_parser_parse_slice_hdr(
-           encryption_base->nalparser, nalu, &slice, TRUE, TRUE)) !=
-      GST_H264_PARSER_OK) {
+           utils->nalparser, nalu, &slice, TRUE, TRUE)) != GST_H264_PARSER_OK) {
     GST_ERROR_OBJECT(h264encrypt, "Unable to parse slice header! Err: %d",
                      (uint32_t)parse_slice_hdr_result);
     return FALSE;
@@ -248,7 +261,7 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
   *dest_offset += padding_byte_count;
   payload_size += padding_byte_count;
   // Encrypt
-  switch (encryption_base->encryption_mode) {
+  switch (utils->encryption_mode) {
     case GST_H264_ENCRYPTION_MODE_AES_CTR:
       AES_CTR_xcrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
       break;
