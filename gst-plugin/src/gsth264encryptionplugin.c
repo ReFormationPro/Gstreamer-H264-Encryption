@@ -49,6 +49,7 @@
 
 #include <gst/gst.h>
 
+#include "gsth264decrypt.h"
 #include "gsth264encrypt.h"
 #include "gsth264encryptionplugin.h"
 
@@ -73,7 +74,8 @@ GST_DEBUG_CATEGORY(GST_H264_ENCRYPTION);
 static gboolean h264encryption_init(GstPlugin *h264encryption) {
   GST_DEBUG_CATEGORY_INIT(GST_H264_ENCRYPTION, "GST_H264_ENCRYPTION", 0,
                           "GstH264Encryption general logs");
-  return GST_ELEMENT_REGISTER(h264encrypt, h264encryption);
+  gboolean result = GST_ELEMENT_REGISTER(h264decrypt, h264encryption);
+  return result & GST_ELEMENT_REGISTER(h264encrypt, h264encryption);
 }
 
 /* gstreamer looks for this structure to register plugins
