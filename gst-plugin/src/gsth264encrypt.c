@@ -231,24 +231,18 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
                                                     GstH264NalUnit *nalu,
                                                     GstMapInfo *map_info,
                                                     size_t *dest_offset) {
-  // TODO Extract this into a function
-  GstH264SliceHdr slice;
-  GstH264ParserResult parse_slice_hdr_result;
   GstH264EncryptionBase *encryption_base =
       GST_H264_ENCRYPTION_BASE(h264encrypt);
   GstH264EncryptionUtils *utils =
       gst_h264_encryption_base_get_encryption_utils(encryption_base);
-  if ((parse_slice_hdr_result = gst_h264_parser_parse_slice_hdr(
-           utils->nalparser, nalu, &slice, TRUE, TRUE)) != GST_H264_PARSER_OK) {
-    GST_ERROR_OBJECT(h264encrypt, "Unable to parse slice header! Err: %d",
-                     (uint32_t)parse_slice_hdr_result);
+  // Calculate payload offset and size
+  gsize payload_offset, payload_size;
+  if (!gst_h264_encryption_base_calculate_payload_offset_and_size(
+          encryption_base, utils->nalparser, nalu, &payload_offset,
+          &payload_size)) {
     return FALSE;
   }
-  const gsize slice_header_size =
-      ((slice.header_size - 1) / 8 + 1) + slice.n_emulation_prevention_bytes;
-  gsize payload_offset = nalu->offset + nalu->header_bytes + slice_header_size;
-  gsize payload_size = nalu->size - nalu->header_bytes - slice_header_size;
-  GST_DEBUG_OBJECT(h264encrypt,
+  GST_DEBUG_OBJECT(encryption_base,
                    "Encrypting nal unit of type %d offset %ld size %ld",
                    nalu->type, payload_offset, payload_size);
   // Apply padding

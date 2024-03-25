@@ -218,48 +218,6 @@ static void gst_h264_encryption_base_get_property(GObject *object,
 
 /* GstBaseTransform vmethod implementations */
 
-/**
- * Returns the number of bytes used for padding.
- *
- * If returns 0, max size was less than required bytes and nothing is written.
- */
-inline static gint _apply_padding(uint8_t *data, size_t size, size_t max_size) {
-  int i;
-  gint padding_byte_count = AES_BLOCKLEN - (size % AES_BLOCKLEN);
-  if (padding_byte_count + size >= max_size) {
-    return 0;
-  }
-  data[size++] = 0x80;
-  for (i = 1; i < padding_byte_count; i++) {
-    data[size++] = 0;
-  }
-  return i;
-}
-
-/**
- * Removes the padding if exists and returns padding byte count.
- *
- * Assumes data is padded at byte level, so it does not check individual bits.
- */
-inline static gint _remove_padding(uint8_t *data, size_t size) {
-  for (int i = size - 1; i >= 0; i--) {
-    switch (data[i]) {
-      case 0:
-        continue;
-      case 0x80: {
-        data[i] = 0;
-        return size - i;
-      }
-      default: {
-        GST_ERROR("Padding is not removed! Invalid byte found: %d", data[i]);
-        break;
-      }
-    }
-  }
-  // All zeros, not found
-  return 0;
-}
-
 size_t _copy_memory_bytes(GstMapInfo *dest_map_info, GstMapInfo *src_map_info,
                           size_t *dest_offset, size_t src_offset, size_t size) {
   if (dest_map_info->maxsize < *dest_offset + size) {
@@ -402,6 +360,25 @@ error: {
   gst_buffer_unmap(outbuf, &dest_map_info);
   return GST_FLOW_ERROR;
 }
+}
+
+gboolean gst_h264_encryption_base_calculate_payload_offset_and_size(
+    GstH264EncryptionBase *encryption_base, GstH264NalParser *nalparser,
+    GstH264NalUnit *nalu, gsize *payload_offset, gsize *payload_size) {
+  // Calculate payload offset and size
+  GstH264SliceHdr slice;
+  GstH264ParserResult parse_slice_hdr_result;
+  if ((parse_slice_hdr_result = gst_h264_parser_parse_slice_hdr(
+           nalparser, nalu, &slice, TRUE, TRUE)) != GST_H264_PARSER_OK) {
+    GST_ERROR_OBJECT(encryption_base, "Unable to parse slice header! Err: %d",
+                     (uint32_t)parse_slice_hdr_result);
+    return FALSE;
+  }
+  const gsize slice_header_size =
+      ((slice.header_size - 1) / 8 + 1) + slice.n_emulation_prevention_bytes;
+  *payload_offset = nalu->offset + nalu->header_bytes + slice_header_size;
+  *payload_size = nalu->size - nalu->header_bytes - slice_header_size;
+  return TRUE;
 }
 
 GstH264EncryptionUtils *gst_h264_encryption_base_get_encryption_utils(

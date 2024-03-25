@@ -56,6 +56,10 @@ struct _GstH264EncryptionBaseClass {
 };
 // GstH264EncryptionBase *    gst_h264_encryption_base_new(void);
 
+gboolean gst_h264_encryption_base_calculate_payload_offset_and_size(
+    GstH264EncryptionBase *encryption_base, GstH264NalParser *nalparser,
+    GstH264NalUnit *nalu, gsize *payload_offset, gsize *payload_size);
+
 G_END_DECLS
 
 #endif /* __GST_H264ENCRYPTIONBASE_H__ */

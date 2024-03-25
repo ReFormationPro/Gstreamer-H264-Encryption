@@ -185,34 +185,27 @@ static gboolean gst_h264_decrypt_decrypt_slice_nalu(GstH264Decrypt *h264decrypt,
                                                     struct AES_ctx *ctx,
                                                     GstH264NalUnit *nalu,
                                                     size_t *dest_offset) {
-  // TODO Extract this into a function
-  // Calculate payload offset and size
   GstH264EncryptionBase *encryption_base =
       GST_H264_ENCRYPTION_BASE(h264decrypt);
-  GstH264SliceHdr slice;
-  GstH264ParserResult parse_slice_hdr_result;
   GstH264EncryptionUtils *utils =
       gst_h264_encryption_base_get_encryption_utils(encryption_base);
-  if ((parse_slice_hdr_result = gst_h264_parser_parse_slice_hdr(
-           utils->nalparser, nalu, &slice, TRUE, TRUE)) != GST_H264_PARSER_OK) {
-    GST_ERROR_OBJECT(encryption_base, "Unable to parse slice header! Err: %d",
-                     (uint32_t)parse_slice_hdr_result);
+  // Calculate payload offset and size
+  gsize payload_offset, payload_size;
+  if (!gst_h264_encryption_base_calculate_payload_offset_and_size(
+          encryption_base, utils->nalparser, nalu, &payload_offset,
+          &payload_size)) {
     return FALSE;
   }
-  const gsize slice_header_size =
-      ((slice.header_size - 1) / 8 + 1) + slice.n_emulation_prevention_bytes;
-  gsize payload_offset = nalu->offset + nalu->header_bytes + slice_header_size;
-  gsize payload_size = nalu->size - nalu->header_bytes - slice_header_size;
+  if (payload_size % AES_BLOCKLEN != 0) {
+    GST_ERROR_OBJECT(encryption_base,
+                     "Encrypted block size (%ld) is not a multiple of "
+                     "AES_BLOCKLEN (%d). Not attempting to decrypt.",
+                     payload_size, AES_BLOCKLEN);
+    return FALSE;
+  }
   GST_DEBUG_OBJECT(encryption_base,
                    "Decrypting nal unit of type %d offset %ld size %ld",
                    nalu->type, payload_offset, payload_size);
-  if (payload_size % AES_BLOCKLEN != 0) {
-    GST_ERROR_OBJECT(encryption_base,
-                     "Encrypted block size is not a multiple of "
-                     "AES_BLOCKLEN=%d. Not attempting to decrypt.",
-                     AES_BLOCKLEN);
-    return FALSE;
-  }
   // Decrypt
   switch (utils->encryption_mode) {
     case GST_H264_ENCRYPTION_MODE_AES_CTR:
