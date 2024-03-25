@@ -20,39 +20,32 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GST_H264ENCRYPT_H__
-#define __GST_H264ENCRYPT_H__
+#ifndef __GST_H264ENCRYPTIONBASE_H__
+#define __GST_H264ENCRYPTIONBASE_H__
 
 #include <gst/base/gstbasetransform.h>
 #include <gst/codecparsers/gsth264parser.h>
 #include <gst/gst.h>
 
 #include "ciphers/aes.h"
-#include "gsth264encryptionbase.h"
 #include "gsth264encryptionmode.h"
 #include "gsth264encryptiontypes.h"
 
 G_BEGIN_DECLS
 
-GST_ELEMENT_REGISTER_DECLARE(h264encrypt);
-#define GST_TYPE_H264_ENCRYPT (gst_h264_encrypt_get_type())
-G_DECLARE_FINAL_TYPE(GstH264Encrypt, gst_h264_encrypt, GST, H264_ENCRYPT,
-                     GstH264EncryptionBase)
-// #define GST_H264_SRC(obj)
-// (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_BASE_SRC,GstBaseSrc)) #define
-// GST_BASE_SRC_CLASS(klass)
-// (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_BASE_SRC,GstBaseSrcClass)) #define
-// GST_BASE_SRC_GET_CLASS(obj)     (G_TYPE_INSTANCE_GET_CLASS ((obj),
-// GST_TYPE_BASE_SRC, GstBaseSrcClass)) #define GST_IS_BASE_SRC(obj)
-// (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_BASE_SRC)) #define
-// GST_IS_BASE_SRC_CLASS(klass)
-// (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_BASE_SRC)) #define
-// GST_BASE_SRC_CAST(obj)          ((GstBaseSrc *)(obj))
+#define GST_TYPE_H264_ENCRYPTION_BASE (gst_h264_encryption_base_get_type())
+G_DECLARE_FINAL_TYPE(GstH264EncryptionBase, gst_h264_encryption_base, GST,
+                     H264_ENCRYPTION_BASE, GstBaseTransform)
 
-struct _GstH264Encrypt {
-  GstH264EncryptionBase encryption_base;
+struct _GstH264EncryptionBase {
+  GstBaseTransform element;
+
+  GstH264NalParser *nalparser;
+  GstH264EncryptionMode encryption_mode;
+  GstEncryptionKey *key;
+  GstEncryptionIV *iv;
 };
 
 G_END_DECLS
 
-#endif /* __GST_H264ENCRYPT_H__ */
+#endif /* __GST_H264ENCRYPTIONBASE_H__ */

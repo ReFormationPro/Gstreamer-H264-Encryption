@@ -28,6 +28,7 @@
 #include <gst/gst.h>
 
 #include "ciphers/aes.h"
+#include "gsth264encryptionbase.h"
 #include "gsth264encryptionmode.h"
 #include "gsth264encryptiontypes.h"
 
@@ -49,12 +50,7 @@ G_DECLARE_FINAL_TYPE(GstH264Decrypt, gst_h264_decrypt, GST, H264_DECRYPT,
 // GST_BASE_SRC_CAST(obj)          ((GstBaseSrc *)(obj))
 
 struct _GstH264Decrypt {
-  GstBaseTransform element;
-
-  GstH264NalParser *nalparser;
-  GstH264EncryptionMode encryption_mode;
-  GstEncryptionKey *key;
-  GstEncryptionIV *iv;
+  GstH264EncryptionBase encryption_base;
 };
 
 G_END_DECLS
