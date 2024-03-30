@@ -294,59 +294,63 @@ static GstFlowReturn gst_h264_encryption_base_transform(GstBaseTransform *base,
     // GST_H264_NAL_SLICE_IDR    = 5,
     // Need to populate SPS/PPS of nalparser for parsing slice header later
     gst_h264_parser_parse_nal(priv->utils.nalparser, &nalu);
-    if (nalu.type >= GST_H264_NAL_SLICE &&
-        nalu.type <= GST_H264_NAL_SLICE_IDR) {
-      if (!GST_H264_ENCRYPTION_BASE_GET_CLASS(h264encryptionbase)
-               ->before_nalu_copy(h264encryptionbase, &nalu, &dest_map_info,
-                                  &dest_offset)) {
-        goto error;
-      }
-      // Copy the slice into dest
-      size_t nalu_total_size;
-      if ((nalu_total_size =
-               _copy_nalu_bytes(&dest_map_info, &nalu, &dest_offset)) == 0) {
-        goto error;
-      }
-      // Process dest nalu
-      GstH264NalUnit dest_nalu;  // NOTE Maybe we can modify nalu instead of
-                                 // parsing another one
-      GstH264ParserResult parse_result = gst_h264_parser_identify_nalu(
-          priv->utils.nalparser, dest_map_info.data,
-          dest_offset - nalu_total_size, dest_offset, &dest_nalu);
-      GST_DEBUG_OBJECT(
-          h264encryptionbase,
-          "Source nal unit is copied. Type %d sc_offset %d total_size "
-          "%d",
-          nalu.type, nalu.sc_offset,
-          nalu.size + (nalu.offset - nalu.sc_offset));
-      GST_DEBUG_OBJECT(
-          h264encryptionbase,
-          "Copied nal unit is parsed. Type %d sc_offset %d "
-          "total_size %d expected size %ld",
-          dest_nalu.type, dest_nalu.sc_offset,
-          dest_nalu.size + (dest_nalu.offset - dest_nalu.sc_offset),
-          nalu_total_size);
-      if (parse_result != GST_H264_PARSER_NO_NAL_END &&
-          parse_result != GST_H264_PARSER_OK) {
-        GST_ERROR_OBJECT(h264encryptionbase,
-                         "Unable to parse destination nal unit");
-        goto error;
-      }
-      if (!GST_H264_ENCRYPTION_BASE_GET_CLASS(h264encryptionbase)
-               ->process_slice_nalu(h264encryptionbase, &ctx, &dest_nalu,
-                                    &dest_map_info, &dest_offset)) {
-        GST_ERROR_OBJECT(h264encryptionbase,
-                         "Subclass failed to parse slice nalu");
-        goto error;
-      }
-    } else {
-      // Copy non-slice nal unit
-      size_t nalu_total_size = nalu.size + (nalu.offset - nalu.sc_offset);
-      if (_copy_memory_bytes(&dest_map_info, &map_info, &dest_offset,
-                             nalu.sc_offset, nalu_total_size) == 0) {
-        goto error;
+    gboolean copy;
+    if (!GST_H264_ENCRYPTION_BASE_GET_CLASS(h264encryptionbase)
+             ->before_nalu_copy(h264encryptionbase, &nalu, &dest_map_info,
+                                &dest_offset, &copy)) {
+      goto error;
+    }
+    if (G_LIKELY(copy)) {
+      if (nalu.type >= GST_H264_NAL_SLICE &&
+          nalu.type <= GST_H264_NAL_SLICE_IDR) {
+        // Copy the slice into dest
+        size_t nalu_total_size;
+        if ((nalu_total_size =
+                 _copy_nalu_bytes(&dest_map_info, &nalu, &dest_offset)) == 0) {
+          goto error;
+        }
+        // Process dest nalu
+        GstH264NalUnit dest_nalu;  // NOTE Maybe we can modify nalu instead of
+                                   // parsing another one
+        GstH264ParserResult parse_result = gst_h264_parser_identify_nalu(
+            priv->utils.nalparser, dest_map_info.data,
+            dest_offset - nalu_total_size, dest_offset, &dest_nalu);
+        GST_DEBUG_OBJECT(
+            h264encryptionbase,
+            "Source nal unit is copied. Type %d sc_offset %d total_size "
+            "%d",
+            nalu.type, nalu.sc_offset,
+            nalu.size + (nalu.offset - nalu.sc_offset));
+        GST_DEBUG_OBJECT(
+            h264encryptionbase,
+            "Copied nal unit is parsed. Type %d sc_offset %d "
+            "total_size %d expected size %ld",
+            dest_nalu.type, dest_nalu.sc_offset,
+            dest_nalu.size + (dest_nalu.offset - dest_nalu.sc_offset),
+            nalu_total_size);
+        if (parse_result != GST_H264_PARSER_NO_NAL_END &&
+            parse_result != GST_H264_PARSER_OK) {
+          GST_ERROR_OBJECT(h264encryptionbase,
+                           "Unable to parse destination nal unit");
+          goto error;
+        }
+        if (!GST_H264_ENCRYPTION_BASE_GET_CLASS(h264encryptionbase)
+                 ->process_slice_nalu(h264encryptionbase, &ctx, &dest_nalu,
+                                      &dest_map_info, &dest_offset)) {
+          GST_ERROR_OBJECT(h264encryptionbase,
+                           "Subclass failed to parse slice nalu");
+          goto error;
+        }
+      } else {
+        // Copy non-slice nal unit
+        size_t nalu_total_size = nalu.size + (nalu.offset - nalu.sc_offset);
+        if (_copy_memory_bytes(&dest_map_info, &map_info, &dest_offset,
+                               nalu.sc_offset, nalu_total_size) == 0) {
+          goto error;
+        }
       }
     }
+    // Parse the next nalu
     result = gst_h264_parser_identify_nalu(priv->utils.nalparser, map_info.data,
                                            nalu.offset + nalu.size,  //
                                            map_info.size, &nalu);

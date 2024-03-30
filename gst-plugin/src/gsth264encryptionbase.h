@@ -41,7 +41,7 @@ typedef void (*enter_base_transform_func)(
     GstH264EncryptionBase *encryption_base);
 typedef gboolean (*before_nalu_copy_func)(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
-    GstMapInfo *dest_map_info, size_t *dest_offset);
+    GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy);
 typedef gboolean (*process_slice_nalu_func)(
     GstH264EncryptionBase *encryption_base, struct AES_ctx *ctx,
     GstH264NalUnit *dest_nalu, GstMapInfo *dest_map_info, size_t *dest_offset);

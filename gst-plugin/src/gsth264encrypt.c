@@ -79,7 +79,7 @@ void gst_h264_encrypt_enter_base_transform(
     GstH264EncryptionBase *encryption_base);
 gboolean gst_h264_encrypt_before_nalu_copy(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
-    GstMapInfo *dest_map_info, size_t *dest_offset);
+    GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy);
 gboolean gst_h264_encrypt_process_slice_nalu(
     GstH264EncryptionBase *encryption_base, struct AES_ctx *ctx,
     GstH264NalUnit *dest_nalu, GstMapInfo *dest_map_info, size_t *dest_offset);
@@ -126,7 +126,8 @@ void gst_h264_encrypt_enter_base_transform(
 
 gboolean gst_h264_encrypt_before_nalu_copy(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
-    GstMapInfo *dest_map_info, size_t *dest_offset) {
+    GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy) {
+  *copy = TRUE;
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(encryption_base);
   GstH264EncryptionUtils *utils =
       gst_h264_encryption_base_get_encryption_utils(encryption_base);
@@ -215,7 +216,7 @@ static GstMemory *gst_h264_encrypt_create_iv_sei_memory(
  */
 inline static gint _apply_padding(uint8_t *data, size_t size, size_t max_size) {
   int i;
-  gint padding_byte_count = AES_BLOCKLEN - (size % AES_BLOCKLEN);
+  size_t padding_byte_count = AES_BLOCKLEN - (size % AES_BLOCKLEN);
   if (padding_byte_count + size >= max_size) {
     return 0;
   }
@@ -246,8 +247,8 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
                    "Encrypting nal unit of type %d offset %ld size %ld",
                    nalu->type, payload_offset, payload_size);
   // Apply padding
-  int padding_byte_count =
-      _apply_padding(nalu->data, payload_size, map_info->maxsize);
+  int padding_byte_count = _apply_padding(&nalu->data[payload_offset],
+                                          payload_size, map_info->maxsize);
   if (G_UNLIKELY(padding_byte_count == 0)) {
     GST_ERROR_OBJECT(h264encrypt, "Not enough space for padding!");
     return FALSE;

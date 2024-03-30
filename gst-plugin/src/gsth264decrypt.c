@@ -68,9 +68,9 @@ static GstFlowReturn gst_h264_decrypt_prepare_output_buffer(
     GstBaseTransform *trans, GstBuffer *input, GstBuffer **outbuf);
 static void gst_h264_decrypt_enter_base_transform(
     GstH264EncryptionBase *encryption_base);
-static gboolean gst_h264dencrypt_before_nalu_copy(
+static gboolean gst_h264_decrypt_before_nalu_copy(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
-    GstMapInfo *dest_map_info, size_t *dest_offset);
+    GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy);
 static gboolean gst_h264_decrypt_process_slice_nalu(
     GstH264EncryptionBase *encryption_base, struct AES_ctx *ctx,
     GstH264NalUnit *dest_nalu, GstMapInfo *dest_map_info, size_t *dest_offset);
@@ -93,7 +93,7 @@ static void gst_h264_decrypt_class_init(GstH264DecryptClass *klass) {
   gsth264encryptionbase_class->enter_base_transform =
       gst_h264_decrypt_enter_base_transform;
   gsth264encryptionbase_class->before_nalu_copy =
-      gst_h264dencrypt_before_nalu_copy;
+      gst_h264_decrypt_before_nalu_copy;
   gsth264encryptionbase_class->process_slice_nalu =
       gst_h264_decrypt_process_slice_nalu;
 
@@ -133,9 +133,37 @@ static GstFlowReturn gst_h264_decrypt_prepare_output_buffer(
 static void gst_h264_decrypt_enter_base_transform(
     GstH264EncryptionBase *encryption_base) {}
 
-static gboolean gst_h264dencrypt_before_nalu_copy(
+static gboolean gst_h264_decrypt_before_nalu_copy(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
-    GstMapInfo *dest_map_info, size_t *dest_offset) {
+    GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy) {
+  *copy = TRUE;
+  // Remove the first h264 encryption SEI
+  // TODO Remove only the first
+  if (src_nalu->type == GST_H264_NAL_SEI) {
+    GST_DEBUG_OBJECT(encryption_base, "found SEI");
+    GstH264EncryptionUtils *utils =
+        gst_h264_encryption_base_get_encryption_utils(encryption_base);
+    GArray *sei_messages = g_array_new(FALSE, FALSE, sizeof(GstH264SEIMessage));
+    gst_h264_parser_parse_sei(utils->nalparser, src_nalu, &sei_messages);
+    // SEI that encryptor inserts has only one message
+    if (sei_messages->len == 1) {
+      GstH264SEIMessage *msg =
+          &g_array_index(sei_messages, GstH264SEIMessage, 0);
+      if (msg->payloadType == GST_H264_SEI_USER_DATA_UNREGISTERED) {
+        GST_DEBUG_OBJECT(encryption_base,
+                         "found the User Data Unregistered SEI");
+        if (memcmp(msg->payload.user_data_unregistered.uuid,
+                   GST_H264_ENCRYPT_IV_SEI_UUID,
+                   sizeof(GST_H264_ENCRYPT_IV_SEI_UUID) - 1) == 0) {
+          // Found encryptor SEI
+          // TODO Initialize IV
+          GST_DEBUG_OBJECT(encryption_base, "IV is found");
+          *copy = FALSE;
+        }
+      }
+    }
+    g_array_free(sei_messages, TRUE);
+  }
   return TRUE;
 }
 
@@ -168,7 +196,7 @@ inline static gint _remove_padding(uint8_t *data, size_t size) {
       }
       default: {
         GST_ERROR("Padding is not removed! Invalid byte found: %d", data[i]);
-        break;
+        return 0;
       }
     }
   }
@@ -225,7 +253,7 @@ static gboolean gst_h264_decrypt_decrypt_slice_nalu(GstH264Decrypt *h264decrypt,
   // Remove padding
   // Only last AES_BLOCKLEN many bytes can be padding bytes
   int padding_byte_count =
-      _remove_padding(&nalu->data[payload_size - AES_BLOCKLEN], AES_BLOCKLEN);
+      _remove_padding(&nalu->data[payload_offset], payload_size);
   if (G_UNLIKELY(padding_byte_count == 0)) {
     GST_WARNING_OBJECT(encryption_base,
                        "Padding is not found, data is invalid.");
