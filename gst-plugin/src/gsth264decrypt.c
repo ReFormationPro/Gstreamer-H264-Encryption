@@ -119,6 +119,7 @@ static void gst_h264_decrypt_class_init(GstH264DecryptClass *klass) {
 static void gst_h264_decrypt_init(GstH264Decrypt *h264decrypt) {
   // FIXME Do I need to call this or is it already called?
   // G_OBJECT_CLASS(parent_class)->init(h264decrypt);
+  h264decrypt->found_iv_sei = FALSE;
 }
 
 /* GstBaseTransform vmethod implementations */
@@ -131,12 +132,19 @@ static GstFlowReturn gst_h264_decrypt_prepare_output_buffer(
 }
 
 static void gst_h264_decrypt_enter_base_transform(
-    GstH264EncryptionBase *encryption_base) {}
+    GstH264EncryptionBase *encryption_base) {
+  GstH264Decrypt *h264decrypt = GST_H264_DECRYPT(encryption_base);
+  h264decrypt->found_iv_sei = FALSE;
+}
 
 static gboolean gst_h264_decrypt_before_nalu_copy(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
     GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy) {
   *copy = TRUE;
+  GstH264Decrypt *h264decrypt = GST_H264_DECRYPT(encryption_base);
+  if (h264decrypt->found_iv_sei) {
+    return TRUE;
+  }
   // Remove the first h264 encryption SEI
   // TODO Remove only the first
   if (src_nalu->type == GST_H264_NAL_SEI) {
@@ -156,9 +164,20 @@ static gboolean gst_h264_decrypt_before_nalu_copy(
                    GST_H264_ENCRYPT_IV_SEI_UUID,
                    sizeof(GST_H264_ENCRYPT_IV_SEI_UUID) - 1) == 0) {
           // Found encryptor SEI
-          // TODO Initialize IV
+          // Read IV
+          if (G_UNLIKELY(msg->payload.user_data_unregistered.size !=
+                         AES_BLOCKLEN)) {
+            GST_ERROR_OBJECT(
+                encryption_base, "Expected IV size to be %d but found %d",
+                AES_BLOCKLEN, msg->payload.user_data_unregistered.size);
+            g_array_free(sei_messages, TRUE);
+            return FALSE;
+          }
+          memcpy(utils->iv->bytes, msg->payload.user_data_unregistered.data,
+                 sizeof(utils->iv->bytes));
           GST_DEBUG_OBJECT(encryption_base, "IV is found");
           *copy = FALSE;
+          h264decrypt->found_iv_sei = TRUE;
         }
       }
     }
@@ -171,6 +190,12 @@ static gboolean gst_h264_decrypt_process_slice_nalu(
     GstH264EncryptionBase *encryption_base, struct AES_ctx *ctx,
     GstH264NalUnit *dest_nalu, GstMapInfo *dest_map_info, size_t *dest_offset) {
   GstH264Decrypt *h264decrypt = GST_H264_DECRYPT(encryption_base);
+  if (!h264decrypt->found_iv_sei) {
+    GST_ERROR_OBJECT(
+        encryption_base,
+        "Attempt to decrypt slice nalu but IV SEI is not observed yet!");
+    return FALSE;
+  }
   // TODO Remove emulation three bytes here
   if (!gst_h264_decrypt_decrypt_slice_nalu(h264decrypt, ctx, dest_nalu,
                                            dest_offset)) {

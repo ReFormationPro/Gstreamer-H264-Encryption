@@ -51,6 +51,8 @@ G_DECLARE_FINAL_TYPE(GstH264Decrypt, gst_h264_decrypt, GST, H264_DECRYPT,
 
 struct _GstH264Decrypt {
   GstH264EncryptionBase encryption_base;
+
+  gboolean found_iv_sei;
 };
 
 G_END_DECLS

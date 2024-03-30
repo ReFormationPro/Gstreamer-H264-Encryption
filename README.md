@@ -1,35 +1,96 @@
 # GStreamer H264 Encryption Plugin
-This plugin is designed to offer GStreamer elements for H.264 encryption/decryption while preserving the H.264 structure, ensuring the integrity of its headers. The goal is to enable the playback of the encrypted stream even if properties such as stream-format or alignment are altered. This capability allows secure video streaming over potentially insecure channels or storage in the MP4 format, with the added advantage of recoverability in the face of packet loss, common in UDP streams.
+This is an experimental plugin designed to offer GStreamer elements for H.264 encryption/decryption while preserving the H.264 structure with nalu and slice headers intact.
+The goal is to enable the playback of the encrypted stream even if properties such as stream-format or alignment are altered.
+This capability allows secure video streaming over potentially insecure channels or storage in the MP4 format, with the added advantage of recoverability in the face of packet loss, common in UDP streams.
+
+Note that this solution requires both encrypting and decrypting sides to be using this plugin. Thus, it is not compatible with existing tools without advanced alterations. You might want to look at DRM and Common Encryption for that.
 
 The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR modes. Although the IV (Initialization Vector) and key are currently static, there are plans to enhance security by introducing dynamic IVs in future iterations. The AES implementation used can be found [here.](https://github.com/kokke/tiny-AES-c/tree/master "Tiny AES C")
 
 #### Note: Use it at your own risk!
 
 ## TODO
-- Make the key and IV private and write-only.
-- Address Emulation Prevention: Insert 3 bytes in the encrypted stream to prevent emulation issues.
-- Dynamically generate IV: Replace the static IV property with a callback that returns a unique IV for each initialization of the AES context.
-- Improve decryption process: Insert the IV into the access unit as SEI (Supplemental Enhancement Information) to enable the decryptor to use it for decryption.
+- Insert 3 bytes in the encrypted stream to prevent emulation issues.
+- Replace the static IV property with a callback that returns a unique IV for each initialization of the AES context.
+- Decryptor does not use IV, remove it.
 
 ## Issues
-- ECB mode does not encrypt the last block if it is not of size block size.
-- CBC mode has bufferoverflow issue which sometimes causes chrashes.
+- Emulation bytes are not inserted into the encrypted stream. This may cause pipelines to break. It may even cause segfaults.
 
 ## Example Pipelines:
-- `gst-launch-1.0 videotestsrc ! nvh264enc ! \
+Note that decryptor iv has to be present but not used.
+
+- Encrypt and decrypt in counter mode:
+```
+gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
     h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
-    h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
-    nvh264dec ! glimagesink`
-- `gst-launch-1.0 videotestsrc ! nvh264enc ! \
+    h264decrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
+    nvh264dec ! glimagesink
+```
+- Encrypt and decrypt in cyber block chaining mode:
+```
+gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
     h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
-    h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-cbc-dec ! \
-    nvh264dec ! glimagesink`
-- `gst-launch-1.0 videotestsrc ! nvh264enc ! \
+    h264decrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
+    nvh264dec ! glimagesink
+```
+- Encrypt, change stream format, change back to byte-stream, decrypt:
+```
+gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
     h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
     h264parse ! video/x-h264,stream-format=avc3 ! h264parse ! video/x-h264,stream-format=byte-stream ! \
+    h264decrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
+    nvh264dec ! glimagesink
+```
+- You can also stack encryptors. However, then you need to decrypt in the reverse order:
+```
+gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
+    h264encrypt iv=01234567012345670123456701234567 key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA encryption-mode=aes-cbc ! \
+    h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
+    h264parse ! video/x-h264,stream-format=avc3 ! h264parse ! video/x-h264,stream-format=byte-stream ! \
+    h264decrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
+    h264decrypt iv=01234567012345670123456701234567 key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA encryption-mode=aes-cbc ! \
+    nvh264dec ! glimagesink
+```
+- If you are using CTR mode then the order does not matter but you get error logs from padding as you should:
+```
+gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
+    h264encrypt iv=01234567012345670123456701234567 key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA encryption-mode=aes-ctr ! \
     h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
-    nvh264dec ! glimagesink`
+    h264encrypt iv=01234567012345670123456701234567 key=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB encryption-mode=aes-ctr ! \
+    h264parse ! video/x-h264,stream-format=avc3 ! h264parse ! video/x-h264,stream-format=byte-stream ! \
+    h264decrypt iv=01234567012345670123456701234567 key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA encryption-mode=aes-ctr ! \
+    h264decrypt iv=01234567012345670123456701234567 key=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB encryption-mode=aes-ctr ! \
+    h264decrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
+    nvh264dec ! glimagesink
 
+
+...
+0:00:01.527514691 257912 0x7d269c002060 ERROR            h264decrypt gsth264decrypt.c:222:_remove_padding: Padding is not removed! Invalid byte found: 155
+```
+## Development Pipelines:
+You may use the following to ensure raw video and decrypted video match each other:
+
+
+```
+gst-launch-1.0 videotestsrc pattern=ball num-buffers=10 ! nvh264enc ! filesink location=source.h264
+
+gst-launch-1.0 filesrc location=source.h264 ! h264parse ! tee name=t1 \
+    t1. ! queue ! multifilesink location=raw/%02d \
+    t1. ! queue ! h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! tee name=t2 \
+    t2. ! queue ! multifilesink location=enc/%02d \
+    t2. ! queue ! h264decrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! multifilesink location=dec/%02d
+```
+Then compare outputs with:
+```
+diff <(hd raw/02) <(hd dec/02)
+```
+Compare all frames:
+```
+for i in 00 01 02 03 04 05 06 07 08 09; do
+    diff <(hd raw/$i) <(hd dec/$i);
+done;
+```
 #### *Original README.md is below:*
 
 # GStreamer template repository
