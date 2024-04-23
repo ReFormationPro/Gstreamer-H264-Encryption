@@ -269,5 +269,42 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
       }
       break;
   }
+  // Insert emulation prevention bytes
+  uint8_t *target = &nalu->data[payload_offset];
+  uint8_t *read_copy = (uint8_t *)g_slice_copy(payload_size, target);
+  uint32_t state = 0xffffffff;
+  size_t i = 0, j = 0;
+  for (; i < payload_size && j < map_info->maxsize; i++, j++) {
+    state = (state << 8) | (read_copy[i] & 0xff);
+    switch (state & 0x00ffffff) {
+      // FIXME Do I need to escape these as well?
+      case 0x00000000:
+      case 0x00000001:
+      case 0x00000002:
+      case 0x00000003: {
+        // Insert emulation prevention byte
+        target[j] = 0x03;
+        // Let the next round do the copy
+        i--;
+        state = 0xffffff03;
+        break;
+      }
+      default: {
+        // Just copy
+        target[j] = read_copy[i];
+        break;
+      }
+    }
+  }
+  g_slice_free1(payload_size, read_copy);
+  if (G_UNLIKELY(i != payload_size)) {
+    GST_ERROR_OBJECT(h264encrypt,
+                     "Unable to encrypt as there is not enough space for "
+                     "emulation prevention bytes");
+    return FALSE;
+  }
+  // Increase offset/size by the amount of added emulation prevention bytes
+  *dest_offset += j - i;
+  // payload_size += j - i;
   return TRUE;
 }

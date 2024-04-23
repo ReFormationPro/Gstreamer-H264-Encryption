@@ -249,6 +249,32 @@ static gboolean gst_h264_decrypt_decrypt_slice_nalu(GstH264Decrypt *h264decrypt,
           &payload_size)) {
     return FALSE;
   }
+  // Remove emulation prevention bytes
+  uint8_t *target = &nalu->data[0];
+  uint8_t *read_target = &nalu->data[0];
+  uint32_t state = 0xffffffff;
+  size_t i = 0, j = 0;
+  for (; i < payload_size; i++, j++) {
+    state = (state << 8) | (read_target[i] & 0xff);
+    switch (state & 0x00ffffff) {
+      case 0x00000003: {
+        // Skip emulation prevention byte
+        j--;
+        // and reset state
+        state = 0xffffffff;
+        break;
+      }
+      default: {
+        // Just copy
+        target[j] = read_target[i];
+        break;
+      }
+    }
+  }
+  // Decrease offset/size by the amount of removed emulation prevention bytes
+  *dest_offset -= i - j;
+  payload_size -= i - j;
+  // Checks before actual decryption
   if (payload_size % AES_BLOCKLEN != 0) {
     GST_ERROR_OBJECT(encryption_base,
                      "Encrypted block size (%ld) is not a multiple of "

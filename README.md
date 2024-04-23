@@ -10,12 +10,12 @@ The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR 
 #### Note: Use it at your own risk!
 
 ## TODO
-- Insert 3 bytes in the encrypted stream to prevent emulation issues.
 - Replace the static IV property with a callback that returns a unique IV for each initialization of the AES context.
 - Decryptor does not use IV, remove it.
 
 ## Issues
 - Emulation bytes are not inserted into the encrypted stream. This may cause pipelines to break. It may even cause segfaults.
+- On bigger resolutions (1024x1024), decryptor gives error due to padding and exits. Unsure why padding is broken there.
 
 ## Example Pipelines:
 Note that decryptor iv has to be present but not used.
