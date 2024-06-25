@@ -11,11 +11,10 @@ The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR 
 
 ## TODO
 - Replace the static IV property with a callback that returns a unique IV for each initialization of the AES context.
-- Decryptor does not use IV, remove it.
+- Decryptor does not use IV, remove it from its properties.
 
 ## Issues
-- Emulation bytes are not inserted into the encrypted stream. This may cause pipelines to break. It may even cause segfaults.
-- On bigger resolutions (1024x1024), decryptor gives error due to padding and exits. Unsure why padding is broken there.
+- As stated in the TODO list, same IV is used for all frames and each NAL units. This is not cryptographically secure.
 
 ## Example Pipelines:
 Note that decryptor iv has to be present but not used.
@@ -73,21 +72,22 @@ You may use the following to ensure raw video and decrypted video match each oth
 
 
 ```
-gst-launch-1.0 videotestsrc pattern=ball num-buffers=10 ! nvh264enc ! filesink location=source.h264
+gst-launch-1.0 videotestsrc pattern=ball num-buffers=1000 ! nvh264enc ! filesink location=source.h264
 
 gst-launch-1.0 filesrc location=source.h264 ! h264parse ! tee name=t1 \
-    t1. ! queue ! multifilesink location=raw/%02d \
-    t1. ! queue ! h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! tee name=t2 \
-    t2. ! queue ! multifilesink location=enc/%02d \
-    t2. ! queue ! h264decrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! multifilesink location=dec/%02d
+    t1. ! queue ! multifilesink location=raw/%03d \
+    t1. ! queue ! h264encrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! tee name=t2 \
+    t2. ! queue ! multifilesink location=enc/%03d \
+    t2. ! queue ! h264decrypt iv=01234567012345670123456701234567 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! multifilesink location=dec/%03d
 ```
 Then compare outputs with:
 ```
-diff <(hd raw/02) <(hd dec/02)
+diff <(hd raw/002) <(hd dec/002)
 ```
 Compare all frames:
 ```
-for i in 00 01 02 03 04 05 06 07 08 09; do
+for i in {000..999}; do
+    echo File $i;
     diff <(hd raw/$i) <(hd dec/$i);
 done;
 ```

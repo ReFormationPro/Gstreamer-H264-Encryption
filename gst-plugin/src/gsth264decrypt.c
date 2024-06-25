@@ -250,8 +250,8 @@ static gboolean gst_h264_decrypt_decrypt_slice_nalu(GstH264Decrypt *h264decrypt,
     return FALSE;
   }
   // Remove emulation prevention bytes
-  uint8_t *target = &nalu->data[0];
-  uint8_t *read_target = &nalu->data[0];
+  uint8_t *target = &nalu->data[payload_offset];
+  uint8_t *read_target = &nalu->data[payload_offset];
   uint32_t state = 0xffffffff;
   size_t i = 0, j = 0;
   for (; i < payload_size; i++, j++) {
