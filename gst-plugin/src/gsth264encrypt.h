@@ -26,6 +26,7 @@
 #include <gst/base/gstbasetransform.h>
 #include <gst/codecparsers/gsth264parser.h>
 #include <gst/gst.h>
+#include <stdlib.h>
 
 #include "ciphers/aes.h"
 #include "gsth264encryptionbase.h"
@@ -34,25 +35,60 @@
 
 G_BEGIN_DECLS
 
+#define RANDOM_IV_SEED_DEFAULT 0
+
+/*
+ * Declares type structure as with derivable/final declares but does not define
+ * class or instance structures.
+ * See G_DECLARE_FINAL_TYPE and/or G_DECLARE_FINAL_TYPE for details.
+ */
+#define G_DECLARE_TYPE_STRUCTURES(ModuleObjName, module_obj_name, MODULE,     \
+                                  OBJ_NAME, ParentName)                       \
+  GType module_obj_name##_get_type(void);                                     \
+  G_GNUC_BEGIN_IGNORE_DEPRECATIONS                                            \
+  typedef struct _##ModuleObjName ModuleObjName;                              \
+  typedef struct _##ModuleObjName##Class ModuleObjName##Class;                \
+                                                                              \
+  _GLIB_DEFINE_AUTOPTR_CHAINUP(ModuleObjName, ParentName)                     \
+  G_DEFINE_AUTOPTR_CLEANUP_FUNC(ModuleObjName##Class, g_type_class_unref)     \
+                                                                              \
+  G_GNUC_UNUSED static inline ModuleObjName *MODULE##_##OBJ_NAME(             \
+      gpointer ptr) {                                                         \
+    return G_TYPE_CHECK_INSTANCE_CAST(ptr, module_obj_name##_get_type(),      \
+                                      ModuleObjName);                         \
+  }                                                                           \
+  G_GNUC_UNUSED static inline gboolean MODULE##_IS_##OBJ_NAME(gpointer ptr) { \
+    return G_TYPE_CHECK_INSTANCE_TYPE(ptr, module_obj_name##_get_type());     \
+  }                                                                           \
+  G_GNUC_END_IGNORE_DEPRECATIONS
+
 GST_ELEMENT_REGISTER_DECLARE(h264encrypt);
 #define GST_TYPE_H264_ENCRYPT (gst_h264_encrypt_get_type())
-G_DECLARE_FINAL_TYPE(GstH264Encrypt, gst_h264_encrypt, GST, H264_ENCRYPT,
-                     GstH264EncryptionBase)
-// #define GST_H264_SRC(obj)
-// (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_BASE_SRC,GstBaseSrc)) #define
-// GST_BASE_SRC_CLASS(klass)
-// (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_BASE_SRC,GstBaseSrcClass)) #define
-// GST_BASE_SRC_GET_CLASS(obj)     (G_TYPE_INSTANCE_GET_CLASS ((obj),
-// GST_TYPE_BASE_SRC, GstBaseSrcClass)) #define GST_IS_BASE_SRC(obj)
-// (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_BASE_SRC)) #define
-// GST_IS_BASE_SRC_CLASS(klass)
-// (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_BASE_SRC)) #define
-// GST_BASE_SRC_CAST(obj)          ((GstBaseSrc *)(obj))
+G_DECLARE_TYPE_STRUCTURES(GstH264Encrypt, gst_h264_encrypt, GST, H264_ENCRYPT,
+                          GstH264EncryptionBase)
+
+struct _GstH264EncryptClass {
+  GstH264EncryptionBaseClass parent_class;
+
+  /* Signals */
+  /* NOTE For performance, these can be replaced with callbacks, ie.
+   * gst_app_sink_set_callbacks.
+   */
+  gboolean (*iv)(GstH264Encrypt *encrypt, uint8_t *iv, guint block_length);
+
+  gpointer padding[12];
+};
+
+// GstH264Encrypt *gst_h264_encrypt_new(void);
 
 struct _GstH264Encrypt {
   GstH264EncryptionBase encryption_base;
 
   gboolean inserted_sei;
+  // randomness data
+  char iv_random_state_buf[128];
+  struct random_data iv_random_data;
+  guint iv_random_seed;
 };
 
 G_END_DECLS

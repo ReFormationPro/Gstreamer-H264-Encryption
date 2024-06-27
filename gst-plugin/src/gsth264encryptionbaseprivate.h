@@ -34,6 +34,7 @@ enum {
   PROP_ENCRYPTION_MODE,
   PROP_IV,
   PROP_KEY,
+  PROP_LAST,
 };
 
 typedef struct GstH264EncryptionUtils {

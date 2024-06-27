@@ -11,7 +11,10 @@ The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR 
 
 ## TODO
 - Replace the static IV property with a callback that returns a unique IV for each initialization of the AES context.
+    - Implemented IV signal and seed, need to remove previous IV code.
 - Decryptor does not use IV, remove it from its properties.
+- Refactor file names and clean the project structure
+- Add CMake for ease
 
 ## Issues
 - As stated in the TODO list, same IV is used for all frames and each NAL units. This is not cryptographically secure.

@@ -36,10 +36,14 @@
 #include "config.h"
 #endif
 
+#include <errno.h>
 #include <gst/base/base.h>
 #include <gst/codecparsers/gsth264parser.h>
 #include <gst/controller/controller.h>
 #include <gst/gst.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/random.h>
 
 #include "ciphers/aes.h"
 #include "gsth264encrypt.h"
@@ -48,6 +52,12 @@
 #include "gsth264encryptionmode.h"
 #include "gsth264encryptionplugin.h"
 #include "gsth264encryptiontypes.h"
+
+enum { SIGNAL_IV, SIGNAL_LAST };
+enum {
+  PROP_IV_SEED = PROP_LAST,  // Extend encryption base props
+  ENCRYPT_PROP_LAST
+};
 
 GST_DEBUG_CATEGORY_STATIC(gst_h264_encrypt_debug);
 #define GST_CAT_DEFAULT gst_h264_encrypt_debug
@@ -74,7 +84,7 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
                                                     GstH264NalUnit *nalu,
                                                     GstMapInfo *map_info,
                                                     size_t *dest_offset);
-
+static guint gst_h264_encrypt_signals[SIGNAL_LAST] = {0};
 void gst_h264_encrypt_enter_base_transform(
     GstH264EncryptionBase *encryption_base);
 gboolean gst_h264_encrypt_before_nalu_copy(
@@ -83,15 +93,24 @@ gboolean gst_h264_encrypt_before_nalu_copy(
 gboolean gst_h264_encrypt_process_slice_nalu(
     GstH264EncryptionBase *encryption_base, struct AES_ctx *ctx,
     GstH264NalUnit *dest_nalu, GstMapInfo *dest_map_info, size_t *dest_offset);
+static void gst_h264_encrypt_set_property(GObject *object, guint prop_id,
+                                          const GValue *value,
+                                          GParamSpec *pspec);
+static void gst_h264_encrypt_get_property(GObject *object, guint prop_id,
+                                          GValue *value, GParamSpec *pspec);
+gboolean gst_h264_encrypt_get_random_iv(GstH264Encrypt *h264encrypt,
+                                        uint8_t *iv, guint block_len);
+void gst_h264_encrypt_set_random_iv_seed(GstH264Encrypt *h264encrypt,
+                                         guint seed);
 /* GObject vmethod implementations */
 
 /* initialize the h264encrypt's class */
 static void gst_h264_encrypt_class_init(GstH264EncryptClass *klass) {
-  // GObjectClass *gobject_class;
+  GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
   GstH264EncryptionBaseClass *gsth264encryptionbase_class;
 
-  // gobject_class = (GObjectClass *)klass;
+  gobject_class = (GObjectClass *)klass;
   gstelement_class = (GstElementClass *)klass;
   gsth264encryptionbase_class = (GstH264EncryptionBaseClass *)klass;
 
@@ -101,10 +120,27 @@ static void gst_h264_encrypt_class_init(GstH264EncryptClass *klass) {
       gst_h264_encrypt_before_nalu_copy;
   gsth264encryptionbase_class->process_slice_nalu =
       gst_h264_encrypt_process_slice_nalu;
+  gobject_class->set_property = gst_h264_encrypt_set_property;
+  gobject_class->get_property = gst_h264_encrypt_get_property;
 
   gst_element_class_set_details_simple(
       gstelement_class, "h264encrypt", "Codec/Encryptor/Video",
       "H264 Video Encryptor", "Oguzhan Oztaskin <oguzhanoztaskin@gmail.com>");
+
+  g_object_class_install_property(
+      gobject_class, PROP_IV_SEED,
+      g_param_spec_uint(
+          "iv-seed", "Encryption IV seed",
+          "32 bit seed value. Required for CTR/CBC modes. Setting "
+          "this takes effect immediately. Make sure to set it to random for "
+          "security.",
+          0, (guint)-1, RANDOM_IV_SEED_DEFAULT,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_PAUSED));
+
+  gst_h264_encrypt_signals[SIGNAL_IV] =
+      g_signal_new("iv", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
+                   G_STRUCT_OFFSET(GstH264EncryptClass, iv), NULL, NULL, NULL,
+                   G_TYPE_BOOLEAN, 2, G_TYPE_POINTER, G_TYPE_UINT, G_TYPE_NONE);
 
   gst_element_class_add_pad_template(
       gstelement_class, gst_static_pad_template_get(&src_template));
@@ -118,6 +154,36 @@ static void gst_h264_encrypt_class_init(GstH264EncryptClass *klass) {
                           "h264encrypt general logs");
 }
 
+static void gst_h264_encrypt_set_property(GObject *object, guint prop_id,
+                                          const GValue *value,
+                                          GParamSpec *pspec) {
+  GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(object);
+  switch (prop_id) {
+    case PROP_IV_SEED:
+      guint seed = g_value_get_uint(value);
+      gst_h264_encrypt_set_random_iv_seed(h264encrypt, seed);
+      break;
+    default:
+      G_OBJECT_CLASS(gst_h264_encrypt_parent_class)
+          ->set_property(object, prop_id, value, pspec);
+      break;
+  }
+}
+
+static void gst_h264_encrypt_get_property(GObject *object, guint prop_id,
+                                          GValue *value, GParamSpec *pspec) {
+  GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(object);
+  switch (prop_id) {
+    case PROP_IV_SEED:
+      g_value_set_uint(value, h264encrypt->iv_random_seed);
+      break;
+    default:
+      G_OBJECT_CLASS(gst_h264_encrypt_parent_class)
+          ->get_property(object, prop_id, value, pspec);
+      break;
+  }
+}
+
 void gst_h264_encrypt_enter_base_transform(
     GstH264EncryptionBase *encryption_base) {
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(encryption_base);
@@ -129,14 +195,19 @@ gboolean gst_h264_encrypt_before_nalu_copy(
     GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy) {
   *copy = TRUE;
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(encryption_base);
-  GstH264EncryptionUtils *utils =
-      gst_h264_encryption_base_get_encryption_utils(encryption_base);
   if (h264encrypt->inserted_sei == FALSE) {
-    // FIXME This somehow causes artifacts
     // Insert SEI right before the first slice
     // TODO Check if we need emulation three byte insertion
     GstMapInfo memory_map_info;
-    GstMemory *sei_memory = gst_h264_encrypt_create_iv_sei_memory(
+    GstMemory *sei_memory;
+    // Update IV and put it in the SEI
+    GstH264EncryptionUtils *utils =
+        gst_h264_encryption_base_get_encryption_utils(encryption_base);
+    if (!gst_h264_encrypt_get_random_iv(h264encrypt, utils->iv->bytes,
+                                        AES_BLOCKLEN)) {
+      return FALSE;
+    }
+    sei_memory = gst_h264_encrypt_create_iv_sei_memory(
         src_nalu->offset - src_nalu->sc_offset, utils->iv->bytes, AES_BLOCKLEN);
     if (!gst_memory_map(sei_memory, &memory_map_info, GST_MAP_READ)) {
       GST_ERROR("Unable to map sei memory for read!");
@@ -174,6 +245,7 @@ gboolean gst_h264_encrypt_process_slice_nalu(
  */
 static void gst_h264_encrypt_init(GstH264Encrypt *h264encrypt) {
   h264encrypt->inserted_sei = FALSE;
+  gst_h264_encrypt_set_random_iv_seed(h264encrypt, RANDOM_IV_SEED_DEFAULT);
 }
 
 /* GstBaseTransform vmethod implementations */
@@ -307,4 +379,45 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
   *dest_offset += j - i;
   // payload_size += j - i;
   return TRUE;
+}
+
+gboolean gst_h264_encrypt_get_random_iv(GstH264Encrypt *h264encrypt,
+                                        uint8_t *iv, guint block_len) {
+  gboolean ret;
+  // Try to get application provided IV
+  g_signal_emit(h264encrypt, gst_h264_encrypt_signals[SIGNAL_IV], 0, iv,
+                AES_BLOCKLEN, &ret);
+  if (!ret) {
+    GST_LOG_OBJECT(h264encrypt, "No IV is provided, using random IV.");
+
+    // Generate random IV using random_r
+    for (guint i = 0; i < block_len;) {
+      int32_t rand_value;
+      if (random_r(&h264encrypt->iv_random_data, &rand_value) != 0) {
+        GST_ERROR_OBJECT(h264encrypt, "Failed generate random IV: %s",
+                         strerror(errno));
+        return FALSE;
+      }
+      int size = sizeof(rand_value) <= (block_len - i) ? sizeof(rand_value)
+                                                       : block_len - i;
+      memcpy(&iv[i], &rand_value, size);
+      i += size;
+    }
+  } else {
+    GST_LOG_OBJECT(h264encrypt, "Using IV provided by IV signal.");
+  }
+  return TRUE;
+}
+
+void gst_h264_encrypt_set_random_iv_seed(GstH264Encrypt *h264encrypt,
+                                         guint seed) {
+  GST_INFO_OBJECT(h264encrypt, "Setting random seed.");
+  if (initstate_r(seed, h264encrypt->iv_random_state_buf,
+                  sizeof(h264encrypt->iv_random_state_buf),
+                  &h264encrypt->iv_random_data) != 0) {
+    GST_ERROR_OBJECT(h264encrypt, "Unable to set random seed: %s",
+                     strerror(errno));
+  } else {
+    h264encrypt->iv_random_seed = seed;
+  }
 }

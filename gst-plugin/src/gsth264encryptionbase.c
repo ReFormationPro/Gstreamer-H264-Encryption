@@ -121,7 +121,8 @@ static void gst_h264_encryption_base_class_init(
           "iv", "Encryption IV",
           // TODO Just enter bitsize
           G_STRINGIFY(AES_BLOCKLEN *
-                      8) " bit encryption iv. Required for CTR/CBC modes",
+                      8) " bit encryption iv. Deprecated. Not used anymore but "
+                         "may need to be present for now.",
           GST_TYPE_ENCRYPTION_IV, G_PARAM_WRITABLE | GST_PARAM_MUTABLE_PAUSED));
 
   GST_BASE_TRANSFORM_CLASS(klass)->transform =
