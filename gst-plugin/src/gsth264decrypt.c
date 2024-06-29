@@ -72,10 +72,9 @@ static gboolean gst_h264_decrypt_before_nalu_copy(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
     GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy);
 static gboolean gst_h264_decrypt_process_slice_nalu(
-    GstH264EncryptionBase *encryption_base, struct AES_ctx *ctx,
-    GstH264NalUnit *dest_nalu, GstMapInfo *dest_map_info, size_t *dest_offset);
+    GstH264EncryptionBase *encryption_base, GstH264NalUnit *dest_nalu,
+    GstMapInfo *dest_map_info, size_t *dest_offset);
 static gboolean gst_h264_decrypt_decrypt_slice_nalu(GstH264Decrypt *h264decrypt,
-                                                    struct AES_ctx *ctx,
                                                     GstH264NalUnit *nalu,
                                                     size_t *dest_offset);
 /* GObject vmethod implementations */
@@ -173,8 +172,8 @@ static gboolean gst_h264_decrypt_before_nalu_copy(
             g_array_free(sei_messages, TRUE);
             return FALSE;
           }
-          memcpy(utils->iv->bytes, msg->payload.user_data_unregistered.data,
-                 sizeof(utils->iv->bytes));
+          memcpy(utils->ctx.Iv, msg->payload.user_data_unregistered.data,
+                 sizeof(utils->ctx.Iv));
           GST_DEBUG_OBJECT(encryption_base, "IV is found");
           *copy = FALSE;
           h264decrypt->found_iv_sei = TRUE;
@@ -187,8 +186,8 @@ static gboolean gst_h264_decrypt_before_nalu_copy(
 }
 
 static gboolean gst_h264_decrypt_process_slice_nalu(
-    GstH264EncryptionBase *encryption_base, struct AES_ctx *ctx,
-    GstH264NalUnit *dest_nalu, GstMapInfo *dest_map_info, size_t *dest_offset) {
+    GstH264EncryptionBase *encryption_base, GstH264NalUnit *dest_nalu,
+    GstMapInfo *dest_map_info, size_t *dest_offset) {
   GstH264Decrypt *h264decrypt = GST_H264_DECRYPT(encryption_base);
   if (!h264decrypt->found_iv_sei) {
     GST_ERROR_OBJECT(
@@ -197,7 +196,7 @@ static gboolean gst_h264_decrypt_process_slice_nalu(
     return FALSE;
   }
   // TODO Remove emulation three bytes here
-  if (!gst_h264_decrypt_decrypt_slice_nalu(h264decrypt, ctx, dest_nalu,
+  if (!gst_h264_decrypt_decrypt_slice_nalu(h264decrypt, dest_nalu,
                                            dest_offset)) {
     GST_ERROR_OBJECT(encryption_base, "Failed to decrypt slice nal unit");
     return FALSE;
@@ -235,7 +234,6 @@ inline static gint _remove_padding(uint8_t *data, size_t size) {
  * @nalu: Destination NAL unit
  */
 static gboolean gst_h264_decrypt_decrypt_slice_nalu(GstH264Decrypt *h264decrypt,
-                                                    struct AES_ctx *ctx,
                                                     GstH264NalUnit *nalu,
                                                     size_t *dest_offset) {
   GstH264EncryptionBase *encryption_base =
@@ -288,16 +286,18 @@ static gboolean gst_h264_decrypt_decrypt_slice_nalu(GstH264Decrypt *h264decrypt,
   // Decrypt
   switch (utils->encryption_mode) {
     case GST_H264_ENCRYPTION_MODE_AES_CTR:
-      AES_CTR_xcrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
+      AES_CTR_xcrypt_buffer(&utils->ctx, &nalu->data[payload_offset],
+                            payload_size);
       break;
     case GST_H264_ENCRYPTION_MODE_AES_ECB: {
       for (size_t i = 0; i < payload_size; i += AES_BLOCKLEN) {
-        AES_ECB_decrypt(ctx, &nalu->data[payload_offset + i]);
+        AES_ECB_decrypt(&utils->ctx, &nalu->data[payload_offset + i]);
       }
       break;
     }
     case GST_H264_ENCRYPTION_MODE_AES_CBC: {
-      AES_CBC_decrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
+      AES_CBC_decrypt_buffer(&utils->ctx, &nalu->data[payload_offset],
+                             payload_size);
       break;
     }
   }

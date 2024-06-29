@@ -80,7 +80,6 @@ static GstMemory *gst_h264_encrypt_create_iv_sei_memory(
 static GstFlowReturn gst_h264_encrypt_prepare_output_buffer(
     GstBaseTransform *trans, GstBuffer *input, GstBuffer **outbuf);
 static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
-                                                    struct AES_ctx *ctx,
                                                     GstH264NalUnit *nalu,
                                                     GstMapInfo *map_info,
                                                     size_t *dest_offset);
@@ -91,8 +90,8 @@ gboolean gst_h264_encrypt_before_nalu_copy(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
     GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy);
 gboolean gst_h264_encrypt_process_slice_nalu(
-    GstH264EncryptionBase *encryption_base, struct AES_ctx *ctx,
-    GstH264NalUnit *dest_nalu, GstMapInfo *dest_map_info, size_t *dest_offset);
+    GstH264EncryptionBase *encryption_base, GstH264NalUnit *dest_nalu,
+    GstMapInfo *dest_map_info, size_t *dest_offset);
 static void gst_h264_encrypt_set_property(GObject *object, guint prop_id,
                                           const GValue *value,
                                           GParamSpec *pspec);
@@ -203,12 +202,12 @@ gboolean gst_h264_encrypt_before_nalu_copy(
     // Update IV and put it in the SEI
     GstH264EncryptionUtils *utils =
         gst_h264_encryption_base_get_encryption_utils(encryption_base);
-    if (!gst_h264_encrypt_get_random_iv(h264encrypt, utils->iv->bytes,
+    if (!gst_h264_encrypt_get_random_iv(h264encrypt, utils->ctx.Iv,
                                         AES_BLOCKLEN)) {
       return FALSE;
     }
     sei_memory = gst_h264_encrypt_create_iv_sei_memory(
-        src_nalu->offset - src_nalu->sc_offset, utils->iv->bytes, AES_BLOCKLEN);
+        src_nalu->offset - src_nalu->sc_offset, utils->ctx.Iv, AES_BLOCKLEN);
     if (!gst_memory_map(sei_memory, &memory_map_info, GST_MAP_READ)) {
       GST_ERROR("Unable to map sei memory for read!");
       gst_mini_object_unref(GST_MINI_OBJECT(sei_memory));
@@ -228,10 +227,10 @@ gboolean gst_h264_encrypt_before_nalu_copy(
 }
 
 gboolean gst_h264_encrypt_process_slice_nalu(
-    GstH264EncryptionBase *encryption_base, struct AES_ctx *ctx,
-    GstH264NalUnit *dest_nalu, GstMapInfo *dest_map_info, size_t *dest_offset) {
+    GstH264EncryptionBase *encryption_base, GstH264NalUnit *dest_nalu,
+    GstMapInfo *dest_map_info, size_t *dest_offset) {
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(encryption_base);
-  if (!gst_h264_encrypt_encrypt_slice_nalu(h264encrypt, ctx, dest_nalu,
+  if (!gst_h264_encrypt_encrypt_slice_nalu(h264encrypt, dest_nalu,
                                            dest_map_info, dest_offset)) {
     GST_ERROR_OBJECT(h264encrypt, "Failed to encrypt slice nal unit");
     return FALSE;
@@ -300,7 +299,6 @@ inline static gint _apply_padding(uint8_t *data, size_t size, size_t max_size) {
 }
 
 static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
-                                                    struct AES_ctx *ctx,
                                                     GstH264NalUnit *nalu,
                                                     GstMapInfo *map_info,
                                                     size_t *dest_offset) {
@@ -330,14 +328,16 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
   // Encrypt
   switch (utils->encryption_mode) {
     case GST_H264_ENCRYPTION_MODE_AES_CTR:
-      AES_CTR_xcrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
+      AES_CTR_xcrypt_buffer(&utils->ctx, &nalu->data[payload_offset],
+                            payload_size);
       break;
     case GST_H264_ENCRYPTION_MODE_AES_CBC:
-      AES_CBC_encrypt_buffer(ctx, &nalu->data[payload_offset], payload_size);
+      AES_CBC_encrypt_buffer(&utils->ctx, &nalu->data[payload_offset],
+                             payload_size);
       break;
     case GST_H264_ENCRYPTION_MODE_AES_ECB:
       for (size_t i = 0; i < payload_size; i += AES_BLOCKLEN) {
-        AES_ECB_encrypt(ctx, &nalu->data[payload_offset + i]);
+        AES_ECB_encrypt(&utils->ctx, &nalu->data[payload_offset + i]);
       }
       break;
   }

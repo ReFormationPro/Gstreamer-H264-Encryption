@@ -115,15 +115,6 @@ static void gst_h264_encryption_base_class_init(
                          GST_TYPE_ENCRYPTION_KEY,
                          G_PARAM_WRITABLE | GST_PARAM_MUTABLE_PAUSED |
                              G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property(
-      gobject_class, PROP_IV,
-      g_param_spec_boxed(
-          "iv", "Encryption IV",
-          // TODO Just enter bitsize
-          G_STRINGIFY(AES_BLOCKLEN *
-                      8) " bit encryption iv. Deprecated. Not used anymore but "
-                         "may need to be present for now.",
-          GST_TYPE_ENCRYPTION_IV, G_PARAM_WRITABLE | GST_PARAM_MUTABLE_PAUSED));
 
   GST_BASE_TRANSFORM_CLASS(klass)->transform =
       GST_DEBUG_FUNCPTR(gst_h264_encryption_base_transform);
@@ -144,7 +135,6 @@ static void gst_h264_encryption_base_init(
   priv->utils.nalparser = gst_h264_nal_parser_new();
   priv->utils.encryption_mode = DEFAULT_ENCRYPTION_MODE;
   priv->utils.key = NULL;
-  priv->utils.iv = NULL;
 }
 
 static void gst_h264_encryption_base_dispose(GObject *object) {
@@ -159,8 +149,6 @@ static void gst_h264_encryption_base_finalize(GObject *object) {
   priv->utils.nalparser = NULL;
   if (priv->utils.key) g_boxed_free(GST_TYPE_ENCRYPTION_KEY, priv->utils.key);
   priv->utils.key = NULL;
-  if (priv->utils.iv) g_boxed_free(GST_TYPE_ENCRYPTION_IV, priv->utils.iv);
-  priv->utils.iv = NULL;
   G_OBJECT_CLASS(parent_class)->finalize(object);
 }
 
@@ -182,12 +170,6 @@ static void gst_h264_encryption_base_set_property(GObject *object,
       }
       priv->utils.key = g_value_dup_boxed(value);
       break;
-    case PROP_IV:
-      if (priv->utils.iv) {
-        g_boxed_free(GST_TYPE_ENCRYPTION_IV, priv->utils.iv);
-      }
-      priv->utils.iv = g_value_dup_boxed(value);
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
       break;
@@ -207,9 +189,6 @@ static void gst_h264_encryption_base_get_property(GObject *object,
       break;
     case PROP_KEY:
       g_value_set_boxed(value, priv->utils.key);
-      break;
-    case PROP_IV:
-      g_value_set_boxed(value, priv->utils.iv);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -250,10 +229,11 @@ static GstFlowReturn gst_h264_encryption_base_transform(GstBaseTransform *base,
   GstH264EncryptionBase *h264encryptionbase = GST_H264_ENCRYPTION_BASE(base);
   GstH264NalUnit nalu;
   GstH264ParserResult result;
-  struct AES_ctx ctx;
+  struct AES_ctx *ctx;
   GstMapInfo map_info, dest_map_info;
   GstH264EncryptionBasePrivate *priv =
       gst_h264_encryption_base_get_instance_private(h264encryptionbase);
+  ctx = &priv->utils.ctx;
 
   GST_DEBUG_OBJECT(h264encryptionbase, "A buffer is received");
   if (GST_CLOCK_TIME_IS_VALID(GST_BUFFER_TIMESTAMP(inbuf)))
@@ -267,20 +247,12 @@ static GstFlowReturn gst_h264_encryption_base_transform(GstBaseTransform *base,
     GST_ERROR_OBJECT(base, "Unable to map output buffer for rw!");
     return GST_FLOW_ERROR;
   }
-  if (G_LIKELY(priv->utils.encryption_mode !=
-               GST_H264_ENCRYPTION_MODE_AES_ECB)) {
-    if (G_UNLIKELY(!priv->utils.key || !priv->utils.iv)) {
-      GST_ERROR_OBJECT(base, "Key or IV is not set!");
-      goto error;
-    }
-    AES_init_ctx_iv(&ctx, priv->utils.key->bytes, priv->utils.iv->bytes);
-  } else {
-    if (G_UNLIKELY(!priv->utils.key)) {
-      GST_ERROR_OBJECT(base, "Key is not set!");
-      goto error;
-    }
-    AES_init_ctx(&ctx, priv->utils.key->bytes);
+  // Init context with key (iv is later if needed)
+  if (G_UNLIKELY(!priv->utils.key)) {
+    GST_ERROR_OBJECT(base, "Key is not set!");
+    goto error;
   }
+  AES_init_ctx(ctx, priv->utils.key->bytes);
   size_t dest_offset = 0;
   result = gst_h264_parser_identify_nalu(priv->utils.nalparser, map_info.data,
                                          0, map_info.size, &nalu);
@@ -336,7 +308,7 @@ static GstFlowReturn gst_h264_encryption_base_transform(GstBaseTransform *base,
           goto error;
         }
         if (!GST_H264_ENCRYPTION_BASE_GET_CLASS(h264encryptionbase)
-                 ->process_slice_nalu(h264encryptionbase, &ctx, &dest_nalu,
+                 ->process_slice_nalu(h264encryptionbase, &dest_nalu,
                                       &dest_map_info, &dest_offset)) {
           GST_ERROR_OBJECT(h264encryptionbase,
                            "Subclass failed to parse slice nalu");

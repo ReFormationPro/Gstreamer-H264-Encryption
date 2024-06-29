@@ -25,6 +25,7 @@
 
 #include <gst/gst.h>
 
+#include "ciphers/aes.h"
 #include "gsth264encryptionbase.h"
 
 G_BEGIN_DECLS
@@ -32,7 +33,6 @@ G_BEGIN_DECLS
 enum {
   PROP_0,
   PROP_ENCRYPTION_MODE,
-  PROP_IV,
   PROP_KEY,
   PROP_LAST,
 };
@@ -41,7 +41,7 @@ typedef struct GstH264EncryptionUtils {
   GstH264NalParser *nalparser;
   GstH264EncryptionMode encryption_mode;
   GstEncryptionKey *key;
-  GstEncryptionIV *iv;
+  struct AES_ctx ctx;
 } GstH264EncryptionUtils;
 
 size_t _copy_memory_bytes(GstMapInfo *dest_map_info, GstMapInfo *src_map_info,
