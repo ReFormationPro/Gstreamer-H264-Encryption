@@ -42,11 +42,11 @@
 #include <gst/gst.h>
 
 #include "ciphers/aes.h"
-#include "gsth264encryptionbase.h"
-#include "gsth264encryptionbaseprivate.h"
-#include "gsth264encryptionmode.h"
-#include "gsth264encryptionplugin.h"
-#include "gsth264encryptiontypes.h"
+#include "h264_encryption_base.h"
+#include "h264_encryption_base_private.h"
+#include "h264_encryption_mode.h"
+#include "h264_encryption_plugin.h"
+#include "h264_encryption_types.h"
 
 GST_DEBUG_CATEGORY_STATIC(gst_h264_encryption_base_debug);
 #define GST_CAT_DEFAULT gst_h264_encryption_base_debug

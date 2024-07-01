@@ -49,9 +49,9 @@
 
 #include <gst/gst.h>
 
-#include "gsth264decrypt.h"
-#include "gsth264encrypt.h"
-#include "gsth264encryptionplugin.h"
+#include "h264_decrypt.h"
+#include "h264_encrypt.h"
+#include "h264_encryption_plugin.h"
 
 // GST_DEBUG_CATEGORY_STATIC(gst_plugin_template_debug);
 // #define GST_CAT_DEFAULT gst_plugin_template_debug

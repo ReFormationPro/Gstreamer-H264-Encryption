@@ -28,9 +28,9 @@
 #include <gst/gst.h>
 
 #include "ciphers/aes.h"
-#include "gsth264encryptionbase.h"
-#include "gsth264encryptionmode.h"
-#include "gsth264encryptiontypes.h"
+#include "h264_encryption_base.h"
+#include "h264_encryption_mode.h"
+#include "h264_encryption_types.h"
 
 G_BEGIN_DECLS
 

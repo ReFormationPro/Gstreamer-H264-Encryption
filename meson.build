@@ -18,4 +18,4 @@ gstbad_dep = dependency('gstreamer-plugins-bad-1.0', version : '>=1.19',
 gstcodecparsers_dep = dependency('gstreamer-codecparsers-1.0', version : '>=1.19',
   fallback : ['gstreamer', 'gst_codec_parsers_dep'])
 
-subdir('gst-plugin')
+subdir('gst-h264-encryption')
