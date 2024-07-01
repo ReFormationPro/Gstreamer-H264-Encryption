@@ -98,8 +98,9 @@ static void gst_h264_encryption_base_class_init(
   klass->process_slice_nalu = NULL;
 
   gst_element_class_set_details_simple(
-      gstelement_class, "h264encryptionbase", "Codec/Encryptor/Video",
-      "H264 Video Encryptor", "Oguzhan Oztaskin <oguzhanoztaskin@gmail.com>");
+      gstelement_class, "h264encryptionbase", "Codec/Encryption/Video",
+      "H264 video encryption base element",
+      "Oguzhan Oztaskin <oguzhanoztaskin@gmail.com>");
   g_object_class_install_property(
       gobject_class, PROP_ENCRYPTION_MODE,
       g_param_spec_enum("encryption-mode", "Encryption Mode",

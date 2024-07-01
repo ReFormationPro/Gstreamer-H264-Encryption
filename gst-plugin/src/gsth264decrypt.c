@@ -97,8 +97,9 @@ static void gst_h264_decrypt_class_init(GstH264DecryptClass *klass) {
       gst_h264_decrypt_process_slice_nalu;
 
   gst_element_class_set_details_simple(
-      gstelement_class, "h264decrypt", "Codec/Encryptor/Video",
-      "H264 Video Encryptor", "Oguzhan Oztaskin <oguzhanoztaskin@gmail.com>");
+      gstelement_class, "h264decrypt", "Codec/Encryption/Video",
+      "Decrypts H264 streams encrypted by h264encrypt",
+      "Oguzhan Oztaskin <oguzhanoztaskin@gmail.com>");
 
   gst_element_class_add_pad_template(
       gstelement_class, gst_static_pad_template_get(&src_template));

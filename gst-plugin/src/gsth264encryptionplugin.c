@@ -84,5 +84,6 @@ static gboolean h264encryption_init(GstPlugin *h264encryption) {
  * description
  */
 GST_PLUGIN_DEFINE(GST_VERSION_MAJOR, GST_VERSION_MINOR, h264encryption,
-                  "h264encryption", h264encryption_init, PACKAGE_VERSION,
-                  GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
+                  "Experimental H264 video encryption plugin",
+                  h264encryption_init, PACKAGE_VERSION, GST_LICENSE,
+                  GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

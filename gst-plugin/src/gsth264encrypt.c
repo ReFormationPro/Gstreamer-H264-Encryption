@@ -123,8 +123,9 @@ static void gst_h264_encrypt_class_init(GstH264EncryptClass *klass) {
   gobject_class->get_property = gst_h264_encrypt_get_property;
 
   gst_element_class_set_details_simple(
-      gstelement_class, "h264encrypt", "Codec/Encryptor/Video",
-      "H264 Video Encryptor", "Oguzhan Oztaskin <oguzhanoztaskin@gmail.com>");
+      gstelement_class, "h264encrypt", "Codec/Encryption/Video",
+      "Encrypts H264 streams. You must use h264decrypt to decrypt.",
+      "Oguzhan Oztaskin <oguzhanoztaskin@gmail.com>");
 
   g_object_class_install_property(
       gobject_class, PROP_IV_SEED,
