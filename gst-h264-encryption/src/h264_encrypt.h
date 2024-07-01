@@ -29,13 +29,13 @@
 #include <stdlib.h>
 
 #include "ciphers/aes.h"
-#include "gsth264encryptionbase.h"
-#include "gsth264encryptionmode.h"
-#include "gsth264encryptiontypes.h"
+#include "h264_encryption_base.h"
+#include "h264_encryption_mode.h"
+#include "h264_encryption_types.h"
 
 G_BEGIN_DECLS
 
-#define RANDOM_IV_SEED_DEFAULT 0
+#define RANDOM_IV_SEED_DEFAULT 1869052520
 
 /*
  * Declares type structure as with derivable/final declares but does not define

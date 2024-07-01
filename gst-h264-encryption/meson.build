@@ -14,13 +14,13 @@ gstaudio_dep = dependency('gstreamer-audio-1.0',
 
 # The h264encryption Plugin
  gsth264encryption_sources = [
-  'src/gsth264encrypt.c',
-  'src/gsth264decrypt.c',
-  'src/gsth264encryptionbase.c',
+  'src/h264_encrypt.c',
+  'src/h264_decrypt.c',
+  'src/h264_encryption_base.c',
   'src/ciphers/aes.c',
-  'src/gsth264encryptionplugin.c',
-  'src/gsth264encryptionmode.c',
-  'src/gsth264encryptiontypes.c',
+  'src/h264_encryption_plugin.c',
+  'src/h264_encryption_mode.c',
+  'src/h264_encryption_types.c',
   ]
 
 gsth264encryption = library('gsth264encryption',

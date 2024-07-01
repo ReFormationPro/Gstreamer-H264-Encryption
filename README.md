@@ -23,21 +23,21 @@ Note that decryptor iv has to be present but not used.
 - Encrypt and decrypt in counter mode:
 ```
 gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
-    h264encrypt iv-seed=31357476677378414 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
+    h264encrypt iv-seed=1869052520 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
     h264decrypt key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
     nvh264dec ! glimagesink
 ```
 - Encrypt and decrypt in cyber block chaining mode:
 ```
 gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
-    h264encrypt iv-seed=31357476677378414 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
+    h264encrypt iv-seed=1869052520 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
     h264decrypt key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
     nvh264dec ! glimagesink
 ```
 - Encrypt, change stream format, change back to byte-stream, decrypt:
 ```
 gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
-    h264encrypt iv-seed=31357476677378414 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
+    h264encrypt iv-seed=1869052520 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
     h264parse ! video/x-h264,stream-format=avc3 ! h264parse ! video/x-h264,stream-format=byte-stream ! \
     h264decrypt key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
     nvh264dec ! glimagesink
@@ -45,8 +45,8 @@ gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
 - You can also stack encryptors. However, then you need to decrypt in the reverse order:
 ```
 gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
-    h264encrypt iv-seed=31357476677378414 key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA encryption-mode=aes-cbc ! \
-    h264encrypt iv-seed=31357476677378414 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
+    h264encrypt iv-seed=1869052520 key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA encryption-mode=aes-cbc ! \
+    h264encrypt iv-seed=1869052520 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
     h264parse ! video/x-h264,stream-format=avc3 ! h264parse ! video/x-h264,stream-format=byte-stream ! \
     h264decrypt key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
     h264decrypt key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA encryption-mode=aes-cbc ! \
@@ -55,9 +55,9 @@ gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
 - If you are using CTR mode and encrypting the stream multiple times and if you shuffle the decryption order, you can still get a playback for a few seconds. You will get error logs for padding as it will be incorrect, and finally your stream will error and end:
 ```
 gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
-    h264encrypt iv-seed=31357476677378414 key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB encryption-mode=aes-ctr ! \
-    h264encrypt iv-seed=31357476677378414 key=01234567012345670123456701234568 encryption-mode=aes-ctr ! \
-    h264encrypt iv-seed=31357476677378414 key=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC encryption-mode=aes-ctr ! \
+    h264encrypt iv-seed=1869052520 key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB encryption-mode=aes-ctr ! \
+    h264encrypt iv-seed=1869052520 key=01234567012345670123456701234568 encryption-mode=aes-ctr ! \
+    h264encrypt iv-seed=1869052520 key=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC encryption-mode=aes-ctr ! \
     h264parse ! video/x-h264,stream-format=avc3 ! h264parse ! video/x-h264,stream-format=byte-stream ! \
     h264decrypt key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB encryption-mode=aes-ctr ! \
     h264decrypt key=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC encryption-mode=aes-ctr ! \
@@ -81,7 +81,7 @@ gst-launch-1.0 videotestsrc pattern=ball num-buffers=1000 ! nvh264enc ! filesink
 
 gst-launch-1.0 filesrc location=source.h264 ! h264parse ! tee name=t1 \
     t1. ! queue ! multifilesink location=raw/%03d \
-    t1. ! queue ! h264encrypt iv-seed=31357476677378414 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! tee name=t2 \
+    t1. ! queue ! h264encrypt iv-seed=1869052520 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! tee name=t2 \
     t2. ! queue ! multifilesink location=enc/%03d \
     t2. ! queue ! h264decrypt key=01234567012345670123456701234567 encryption-mode=aes-cbc ! multifilesink location=dec/%03d
 ```

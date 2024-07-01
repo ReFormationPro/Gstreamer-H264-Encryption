@@ -1,4 +1,4 @@
-#include "gsth264encryptionmode.h"
+#include "h264_encryption_mode.h"
 
 #include <gst/gst.h>
 

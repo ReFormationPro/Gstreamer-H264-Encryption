@@ -46,12 +46,12 @@
 #include <sys/random.h>
 
 #include "ciphers/aes.h"
-#include "gsth264encrypt.h"
-#include "gsth264encryptionbase.h"
-#include "gsth264encryptionbaseprivate.h"
-#include "gsth264encryptionmode.h"
-#include "gsth264encryptionplugin.h"
-#include "gsth264encryptiontypes.h"
+#include "h264_encrypt.h"
+#include "h264_encryption_base.h"
+#include "h264_encryption_base_private.h"
+#include "h264_encryption_mode.h"
+#include "h264_encryption_plugin.h"
+#include "h264_encryption_types.h"
 
 enum { SIGNAL_IV, SIGNAL_LAST };
 enum {
