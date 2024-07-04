@@ -187,9 +187,6 @@ static void gst_h264_encryption_base_get_property(GObject *object,
     case PROP_ENCRYPTION_MODE:
       g_value_set_enum(value, priv->utils.encryption_mode);
       break;
-    case PROP_KEY:
-      g_value_set_boxed(value, priv->utils.key);
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
       break;

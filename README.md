@@ -10,7 +10,6 @@ The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR 
 #### Note: Use it at your own risk!
 
 ## TODO
-- Refactor file names and clean the project structure
 - Add CMake for ease
 - ECB mode does not use IV. However, IV is generated and inserted into the stream regardless. Remove it.
 
