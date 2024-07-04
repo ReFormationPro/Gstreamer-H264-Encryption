@@ -33,6 +33,9 @@
 
 G_BEGIN_DECLS
 
+#define IS_SLICE_NALU(nalu_type) \
+  (nalu_type >= GST_H264_NAL_SLICE && nalu_type <= GST_H264_NAL_SLICE_IDR)
+
 #define GST_TYPE_H264_ENCRYPTION_BASE (gst_h264_encryption_base_get_type())
 G_DECLARE_DERIVABLE_TYPE(GstH264EncryptionBase, gst_h264_encryption_base, GST,
                          H264_ENCRYPTION_BASE, GstBaseTransform)

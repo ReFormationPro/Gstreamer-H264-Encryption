@@ -51,6 +51,9 @@ G_BEGIN_DECLS
 
 // Has to be 16 bytes, excluding the null byte
 #define GST_H264_ENCRYPT_IV_SEI_UUID "GSTH264ENCRYPTIV"
+// NOTE: If IV SEI payload size changes, you need to change the third byte below
+#define GST_H264_ENCRYPT_IV_SEI_SIGNATURE \
+  "\x06\x05\x20" GST_H264_ENCRYPT_IV_SEI_UUID
 
 G_END_DECLS
 

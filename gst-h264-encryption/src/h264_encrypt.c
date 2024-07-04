@@ -190,12 +190,27 @@ void gst_h264_encrypt_enter_base_transform(
   h264encrypt->inserted_sei = FALSE;
 }
 
+/**
+ * Quickly check if this is our SEI
+ *
+ * NOTE: If IV SEI content size changes, third byte of the signature needs to be
+ * changed too
+ */
+static inline gboolean is_iv_sei(void *sei_payload, size_t payload_size) {
+  const int signature_size = sizeof(GST_H264_ENCRYPT_IV_SEI_SIGNATURE) - 1;
+  return payload_size >= signature_size &&
+         memcmp(sei_payload, GST_H264_ENCRYPT_IV_SEI_SIGNATURE,
+                signature_size) == 0;
+}
+
 gboolean gst_h264_encrypt_before_nalu_copy(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
     GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy) {
   *copy = TRUE;
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(encryption_base);
-  if (h264encrypt->inserted_sei == FALSE) {
+  if (h264encrypt->inserted_sei == FALSE &&
+      (IS_SLICE_NALU(src_nalu->type) ||
+       is_iv_sei(&src_nalu->data[src_nalu->offset], src_nalu->size))) {
     // Insert SEI right before the first slice
     // TODO Check if we need emulation three byte insertion
     GstMapInfo memory_map_info;
@@ -236,7 +251,6 @@ gboolean gst_h264_encrypt_process_slice_nalu(
     GST_ERROR_OBJECT(h264encrypt, "Failed to encrypt slice nal unit");
     return FALSE;
   }
-  // TODO Insert emulation three bytes here
   return TRUE;
 }
 

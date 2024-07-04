@@ -111,7 +111,6 @@ static void gst_h264_encryption_base_class_init(
   g_object_class_install_property(
       gobject_class, PROP_KEY,
       g_param_spec_boxed("key", "Encryption Key",
-                         // TODO Just enter bitsize
                          G_STRINGIFY(AES_KEYLEN * 8) " bit encryption key",
                          GST_TYPE_ENCRYPTION_KEY,
                          G_PARAM_WRITABLE | GST_PARAM_MUTABLE_PAUSED |
@@ -275,8 +274,7 @@ static GstFlowReturn gst_h264_encryption_base_transform(GstBaseTransform *base,
       goto error;
     }
     if (G_LIKELY(copy)) {
-      if (nalu.type >= GST_H264_NAL_SLICE &&
-          nalu.type <= GST_H264_NAL_SLICE_IDR) {
+      if (IS_SLICE_NALU(nalu.type)) {
         // Copy the slice into dest
         size_t nalu_total_size;
         if ((nalu_total_size =

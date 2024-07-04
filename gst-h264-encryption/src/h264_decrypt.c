@@ -146,7 +146,6 @@ static gboolean gst_h264_decrypt_before_nalu_copy(
     return TRUE;
   }
   // Remove the first h264 encryption SEI
-  // TODO Remove only the first
   if (src_nalu->type == GST_H264_NAL_SEI) {
     GST_DEBUG_OBJECT(encryption_base, "found SEI");
     GstH264EncryptionUtils *utils =
@@ -190,13 +189,12 @@ static gboolean gst_h264_decrypt_process_slice_nalu(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *dest_nalu,
     GstMapInfo *dest_map_info, size_t *dest_offset) {
   GstH264Decrypt *h264decrypt = GST_H264_DECRYPT(encryption_base);
-  if (!h264decrypt->found_iv_sei) {
+  if (G_UNLIKELY(!h264decrypt->found_iv_sei)) {
     GST_ERROR_OBJECT(
         encryption_base,
         "Attempt to decrypt slice nalu but IV SEI is not observed yet!");
     return FALSE;
   }
-  // TODO Remove emulation three bytes here
   if (!gst_h264_decrypt_decrypt_slice_nalu(h264decrypt, dest_nalu,
                                            dest_offset)) {
     GST_ERROR_OBJECT(encryption_base, "Failed to decrypt slice nal unit");
