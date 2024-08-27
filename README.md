@@ -5,9 +5,12 @@ This capability allows secure video streaming over potentially insecure channels
 
 Note that this solution requires both encrypting and decrypting sides to be using this plugin. Thus, it is not compatible with existing tools without advanced alterations. You might want to look at DRM and Common Encryption for that.
 
-The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR modes. Although the IV (Initialization Vector) and key are currently static, there are plans to enhance security by introducing dynamic IVs in future iterations. The AES implementation used can be found [here.](https://github.com/kokke/tiny-AES-c/tree/master "Tiny AES C")
+The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR modes. Although the IV ([Initialization Vector](https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Initialization_vector_(IV))) and key are currently static, there are plans to enhance security by introducing dynamic IVs in future iterations. 
 
-#### Note: Use it at your own risk!
+For AES implementation used [Tiny AES in C](https://github.com/kokke/tiny-AES-c/tree/master) library.
+
+> [!WARNING]
+> Use it at your own risk!
 
 ## TODO
 - Add CMake for ease
@@ -17,32 +20,32 @@ The current implementation supports 128-bit AES encryption in ECB, CBC, and CTR 
 No known issues at the moment.
 
 ## Example Pipelines:
-Note that decryptor iv has to be present but not used.
+Note that decryptor IV has to be present but not used.
 
-- Encrypt and decrypt in counter mode:
-```
+- Encrypt and decrypt in counter (CTR) mode:
+```shell
 gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
     h264encrypt iv-seed=1869052520 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
     h264decrypt key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
     nvh264dec ! glimagesink
 ```
-- Encrypt and decrypt in cyber block chaining mode:
-```
+- Encrypt and decrypt in cyber block chaining (CBC) mode:
+```shell
 gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
     h264encrypt iv-seed=1869052520 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
     h264decrypt key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
     nvh264dec ! glimagesink
 ```
 - Encrypt, change stream format, change back to byte-stream, decrypt:
-```
+```shell
 gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
     h264encrypt iv-seed=1869052520 key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
     h264parse ! video/x-h264,stream-format=avc3 ! h264parse ! video/x-h264,stream-format=byte-stream ! \
     h264decrypt key=01234567012345670123456701234567 encryption-mode=aes-ctr ! \
     nvh264dec ! glimagesink
 ```
-- You can also stack encryptors. However, then you need to decrypt in the reverse order:
-```
+- You can also stack encryptors. However, then you need to decrypt in the **reverse** order:
+```shell
 gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
     h264encrypt iv-seed=1869052520 key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA encryption-mode=aes-cbc ! \
     h264encrypt iv-seed=1869052520 key=01234567012345670123456701234567 encryption-mode=aes-cbc ! \
@@ -52,7 +55,7 @@ gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
     nvh264dec ! glimagesink
 ```
 - If you are using CTR mode and encrypting the stream multiple times and if you shuffle the decryption order, you can still get a playback for a few seconds. You will get error logs for padding as it will be incorrect, and finally your stream will error and end:
-```
+```shell
 gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
     h264encrypt iv-seed=1869052520 key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB encryption-mode=aes-ctr ! \
     h264encrypt iv-seed=1869052520 key=01234567012345670123456701234568 encryption-mode=aes-ctr ! \
@@ -71,11 +74,10 @@ gst-launch-1.0 videotestsrc pattern=ball ! nvh264enc ! \
 0:00:02.844217636 76389 0x7b2f1c002060 ERROR     h264encryptionbase gsth264encryptionbase.c:313:gst_h264_encryption_base_transform:<h264decrypt1> Subclass failed to parse slice nalu
 ...
 ```
+
 ## Development Pipelines:
 You may use the following to ensure raw video and decrypted video match each other:
-
-
-```
+```shell
 gst-launch-1.0 videotestsrc pattern=ball num-buffers=1000 ! nvh264enc ! filesink location=source.h264
 
 gst-launch-1.0 filesrc location=source.h264 ! h264parse ! tee name=t1 \
@@ -85,11 +87,11 @@ gst-launch-1.0 filesrc location=source.h264 ! h264parse ! tee name=t1 \
     t2. ! queue ! h264decrypt key=01234567012345670123456701234567 encryption-mode=aes-cbc ! multifilesink location=dec/%03d
 ```
 Then compare outputs with:
-```
+```shell
 diff <(hd raw/002) <(hd dec/002)
 ```
 Compare all frames:
-```
+```shell
 for i in {000..999}; do
     echo File $i;
     diff <(hd raw/$i) <(hd dec/$i);
