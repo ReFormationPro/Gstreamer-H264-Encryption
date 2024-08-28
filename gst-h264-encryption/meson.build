@@ -23,7 +23,7 @@ gsth264encryption_sources = [
 gsth264encryption = library('gsth264encryption',
   gsth264encryption_sources,
   c_args: plugin_c_args + ['-DGST_USE_UNSTABLE_API'],
-  dependencies : [gst_dep, gstbase_dep, gstcodecparsers_dep],
+  dependencies : [gst_dep, gstcodecparsers_dep],
   install : true,
   install_dir : plugins_install_dir,
 )
