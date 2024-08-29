@@ -1,9 +1,28 @@
-#ifndef __GST_H264ENCRYPTION_TYPES_H__
-#define __GST_H264ENCRYPTION_TYPES_H__
+/*
+ * GStreamer H264 Encryption Plugin
+ *
+ * Copyright (C) 2024 Oguzhan Oztaskin <oguzhanoztaskin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#ifndef __GST_H264_ENCRYPTION_TYPES_H__
+#define __GST_H264_ENCRYPTION_TYPES_H__
 
 #include <gst/gst.h>
 
-#include "ciphers/aes.h"
+#include "ciphers/aes.h" // for: AES_KEYLEN, AES_BLOCKLEN
 
 G_BEGIN_DECLS
 
@@ -27,4 +46,4 @@ DECLARE_GST_ENCRYPTION_STRUCT(GstEncryptionIV, gst_encryption_iv, AES_BLOCKLEN)
 
 G_END_DECLS
 
-#endif /* __GST_H264ENCRYPTION_TYPES_H__ */
+#endif /* __GST_H264_ENCRYPTION_TYPES_H__ */

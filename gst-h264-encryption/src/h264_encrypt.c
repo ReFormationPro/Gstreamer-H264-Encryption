@@ -1,22 +1,20 @@
 /*
- * GStreamer
- * Copyright (C) 2006 Stefan Kost <ensonic@users.sf.net>
- * Copyright (C) 2024 root <<user@hostname.org>>
+ * GStreamer H264 Encryption Plugin
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * Copyright (C) 2024 Oguzhan Oztaskin <oguzhanoztaskin@gmail.com>
  *
- * This library is distributed in the hope that it will be useful,
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this library; if not, write to the
- * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -36,7 +34,7 @@
 #include "config.h"
 #endif
 
-#include <errno.h>
+#include <errno.h> // for: errno, strerror()
 #include <gst/base/base.h>
 #include <gst/codecparsers/gsth264parser.h>
 #include <gst/controller/controller.h>
@@ -71,9 +69,9 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE(
     GST_STATIC_CAPS("video/x-h264,alignment=au,stream-format=byte-stream"));
 
 #define gst_h264_encrypt_parent_class parent_class
-G_DEFINE_TYPE(GstH264Encrypt, gst_h264_encrypt, GST_TYPE_H264_ENCRYPTION_BASE);
+G_DEFINE_TYPE(GstH264Encrypt, gst_h264_encrypt, GST_TYPE_H264_ENCRYPTION_BASE)
 GST_ELEMENT_REGISTER_DEFINE(h264encrypt, "h264encrypt", GST_RANK_NONE,
-                            GST_TYPE_H264_ENCRYPT);
+                            GST_TYPE_H264_ENCRYPT)
 
 static GstMemory *gst_h264_encrypt_create_iv_sei_memory(
     guint start_code_prefix_length, const guint8 *iv, guint iv_size);
@@ -268,7 +266,9 @@ static void gst_h264_encrypt_init(GstH264Encrypt *h264encrypt) {
  */
 static GstFlowReturn gst_h264_encrypt_prepare_output_buffer(
     GstBaseTransform *trans, GstBuffer *input, GstBuffer **outbuf) {
-  // TODO Calculate buffer size better
+  (void) trans; // unused
+
+  // TODO: Calculate buffer size better
   gsize input_size = gst_buffer_get_size(input);
   // Also account for SEI, changable AES_BLOCKLEN and emulation bytes
   *outbuf = gst_buffer_new_and_alloc(input_size + 40 + AES_BLOCKLEN + 30);
