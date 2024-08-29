@@ -300,9 +300,9 @@ static GstMemory *gst_h264_encrypt_create_iv_sei_memory(
  *
  * If returns 0, max size was less than required bytes and nothing is written.
  */
-inline static gint _apply_padding(uint8_t *data, size_t size, size_t max_size) {
-  int i;
-  size_t padding_byte_count = AES_BLOCKLEN - (size % AES_BLOCKLEN);
+inline static gsize _apply_padding(guint8 *data, gsize size, gsize max_size) {
+  gsize i;
+  gsize padding_byte_count = AES_BLOCKLEN - (size % AES_BLOCKLEN);
   if (padding_byte_count + size >= max_size) {
     return 0;
   }
@@ -332,8 +332,8 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
                    "Encrypting nal unit of type %d offset %ld size %ld",
                    nalu->type, payload_offset, payload_size);
   // Apply padding
-  int padding_byte_count = _apply_padding(&nalu->data[payload_offset],
-                                          payload_size, map_info->maxsize);
+  gsize padding_byte_count = _apply_padding(&nalu->data[payload_offset],
+                                            payload_size, map_info->maxsize);
   if (G_UNLIKELY(padding_byte_count == 0)) {
     GST_ERROR_OBJECT(h264encrypt, "Not enough space for padding!");
     return FALSE;
