@@ -33,6 +33,8 @@
 
 G_BEGIN_DECLS
 
+#define CIPHERTEXT_END_MARKER 0x80
+
 #define IS_SLICE_NALU(nalu_type) \
   (nalu_type >= GST_H264_NAL_SLICE && nalu_type <= GST_H264_NAL_SLICE_IDR)
 

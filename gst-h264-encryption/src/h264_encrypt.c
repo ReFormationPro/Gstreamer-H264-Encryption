@@ -401,7 +401,7 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
                      "ciphertext end marker");
     return FALSE;
   }
-  target[j] = 0x80;
+  target[j] = CIPHERTEXT_END_MARKER;
   (*dest_offset)++;
   return TRUE;
 }
