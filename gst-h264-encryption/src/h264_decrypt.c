@@ -246,6 +246,14 @@ static gboolean gst_h264_decrypt_decrypt_slice_nalu(GstH264Decrypt *h264decrypt,
           &payload_size)) {
     return FALSE;
   }
+  // Check end marker
+  if (nalu->data[payload_offset + payload_size - 1] != 0x80) {
+    GST_ERROR_OBJECT(h264decrypt,
+                     "Ciphertext end marker is not found. Last byte of the "
+                     "payload will not be ignored.");
+  } else {
+    payload_size--;
+  }
   // Remove emulation prevention bytes
   uint8_t *target = &nalu->data[payload_offset];
   uint8_t *read_target = &nalu->data[payload_offset];

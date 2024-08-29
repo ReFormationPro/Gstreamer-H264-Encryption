@@ -271,7 +271,7 @@ static GstFlowReturn gst_h264_encrypt_prepare_output_buffer(
   // TODO Calculate buffer size better
   gsize input_size = gst_buffer_get_size(input);
   // Also account for SEI, changable AES_BLOCKLEN and emulation bytes
-  *outbuf = gst_buffer_new_and_alloc(input_size + 40 + AES_BLOCKLEN + 30);
+  *outbuf = gst_buffer_new_and_alloc(input_size + 40 + AES_BLOCKLEN + 210);
   return GST_FLOW_OK;
 }
 
@@ -332,8 +332,9 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
                    "Encrypting nal unit of type %d offset %ld size %ld",
                    nalu->type, payload_offset, payload_size);
   // Apply padding
-  int padding_byte_count = _apply_padding(&nalu->data[payload_offset],
-                                          payload_size, map_info->maxsize);
+  int padding_byte_count =
+      _apply_padding(&nalu->data[payload_offset], payload_size,
+                     map_info->maxsize - payload_offset);
   if (G_UNLIKELY(padding_byte_count == 0)) {
     GST_ERROR_OBJECT(h264encrypt, "Not enough space for padding!");
     return FALSE;
@@ -393,6 +394,15 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
   // Increase offset/size by the amount of added emulation prevention bytes
   *dest_offset += j - i;
   // payload_size += j - i;
+  // Add end marker
+  if (G_UNLIKELY(j + 1 > map_info->maxsize)) {
+    GST_ERROR_OBJECT(h264encrypt,
+                     "Unable to encrypt as there is not enough space for "
+                     "ciphertext end marker");
+    return FALSE;
+  }
+  target[j] = 0x80;
+  (*dest_offset)++;
   return TRUE;
 }
 
