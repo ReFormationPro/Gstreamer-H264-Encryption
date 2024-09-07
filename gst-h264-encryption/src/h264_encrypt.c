@@ -159,10 +159,10 @@ static void gst_h264_encrypt_set_property(GObject *object, guint prop_id,
                                           GParamSpec *pspec) {
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(object);
   switch (prop_id) {
-    case PROP_IV_SEED:
+    case PROP_IV_SEED: {
       guint seed = g_value_get_uint(value);
       gst_h264_encrypt_set_random_iv_seed(h264encrypt, seed);
-      break;
+    } break;
     default:
       G_OBJECT_CLASS(gst_h264_encrypt_parent_class)
           ->set_property(object, prop_id, value, pspec);
