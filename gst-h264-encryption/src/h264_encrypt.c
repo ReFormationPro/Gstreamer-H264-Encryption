@@ -197,7 +197,7 @@ void gst_h264_encrypt_enter_base_transform(
  * changed too
  */
 static inline gboolean is_iv_sei(void *sei_payload, size_t payload_size) {
-  const int signature_size = sizeof(GST_H264_ENCRYPT_IV_SEI_SIGNATURE) - 1;
+  size_t signature_size = sizeof(GST_H264_ENCRYPT_IV_SEI_SIGNATURE) - 1;
   return payload_size >= signature_size &&
          memcmp(sei_payload, GST_H264_ENCRYPT_IV_SEI_SIGNATURE,
                 signature_size) == 0;
@@ -268,6 +268,7 @@ static void gst_h264_encrypt_init(GstH264Encrypt *h264encrypt) {
  */
 static GstFlowReturn gst_h264_encrypt_prepare_output_buffer(
     GstBaseTransform *trans, GstBuffer *input, GstBuffer **outbuf) {
+  UNUSED(trans);
   // TODO Calculate buffer size better
   gsize input_size = gst_buffer_get_size(input);
   // Also account for SEI, changable AES_BLOCKLEN and emulation bytes
@@ -300,9 +301,9 @@ static GstMemory *gst_h264_encrypt_create_iv_sei_memory(
  *
  * If returns 0, max size was less than required bytes and nothing is written.
  */
-inline static gsize _apply_padding(guint8 *data, gsize size, gsize max_size) {
-  gsize i;
-  gsize padding_byte_count = AES_BLOCKLEN - (size % AES_BLOCKLEN);
+inline static gint _apply_padding(uint8_t *data, size_t size, size_t max_size) {
+  size_t i;
+  size_t padding_byte_count = AES_BLOCKLEN - (size % AES_BLOCKLEN);
   if (padding_byte_count + size >= max_size) {
     return 0;
   }

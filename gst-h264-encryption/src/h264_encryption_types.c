@@ -52,13 +52,18 @@ static gboolean hex2bytes(const char *str, uint8_t *bytes, size_t byte_count) {
   }                                                                           \
   static void register_##struct_name##_deserialization_func(GType type) {     \
     static GstValueTable table = {                                            \
-        G_TYPE_NONE, NULL, NULL,                                              \
-        (GstValueDeserializeFunc)(function_name_prefix##_##deserialize)};     \
+        G_TYPE_NONE,                                                          \
+        NULL,                                                                 \
+        NULL,                                                                 \
+        (GstValueDeserializeFunc)(function_name_prefix##_##deserialize),      \
+        (GstValueDeserializeWithPSpecFunc)NULL,                               \
+        {NULL}};                                                              \
     table.type = type;                                                        \
     gst_value_register(&table);                                               \
   }                                                                           \
   G_DEFINE_BOXED_TYPE_WITH_CODE(                                              \
-      struct_name, function_name_prefix, function_name_prefix##_##copy,       \
+      struct_name, function_name_prefix,                                      \
+      (GBoxedCopyFunc)function_name_prefix##_##copy,                          \
       function_name_prefix##_##free,                                          \
       register_##struct_name##_deserialization_func(g_define_type_id))
 

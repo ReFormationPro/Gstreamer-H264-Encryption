@@ -126,6 +126,7 @@ static void gst_h264_decrypt_init(GstH264Decrypt *h264decrypt) {
 
 static GstFlowReturn gst_h264_decrypt_prepare_output_buffer(
     GstBaseTransform *trans, GstBuffer *input, GstBuffer **outbuf) {
+  UNUSED(trans);
   gsize input_size = gst_buffer_get_size(input);
   *outbuf = gst_buffer_new_and_alloc(input_size);
   return GST_FLOW_OK;
@@ -140,6 +141,8 @@ static void gst_h264_decrypt_enter_base_transform(
 static gboolean gst_h264_decrypt_before_nalu_copy(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
     GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy) {
+  UNUSED(dest_map_info);
+  UNUSED(dest_offset);
   *copy = TRUE;
   GstH264Decrypt *h264decrypt = GST_H264_DECRYPT(encryption_base);
   if (h264decrypt->found_iv_sei) {
@@ -188,6 +191,7 @@ static gboolean gst_h264_decrypt_before_nalu_copy(
 static gboolean gst_h264_decrypt_process_slice_nalu(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *dest_nalu,
     GstMapInfo *dest_map_info, size_t *dest_offset) {
+  UNUSED(dest_map_info);
   GstH264Decrypt *h264decrypt = GST_H264_DECRYPT(encryption_base);
   if (G_UNLIKELY(!h264decrypt->found_iv_sei)) {
     GST_ERROR_OBJECT(
