@@ -40,6 +40,8 @@ G_BEGIN_DECLS
  * whose value is defined below. Any byte greater than 0x03 should be ok.
  */
 #define CIPHERTEXT_END_MARKER 0x80
+// Fix unused variable warnings
+#define UNUSED(x) (void)(x)
 
 #define IS_SLICE_NALU(nalu_type) \
   (nalu_type >= GST_H264_NAL_SLICE && nalu_type <= GST_H264_NAL_SLICE_IDR)

@@ -197,7 +197,7 @@ void gst_h264_encrypt_enter_base_transform(
  * changed too
  */
 static inline gboolean is_iv_sei(void *sei_payload, size_t payload_size) {
-  const int signature_size = sizeof(GST_H264_ENCRYPT_IV_SEI_SIGNATURE) - 1;
+  size_t signature_size = sizeof(GST_H264_ENCRYPT_IV_SEI_SIGNATURE) - 1;
   return payload_size >= signature_size &&
          memcmp(sei_payload, GST_H264_ENCRYPT_IV_SEI_SIGNATURE,
                 signature_size) == 0;
@@ -268,6 +268,7 @@ static void gst_h264_encrypt_init(GstH264Encrypt *h264encrypt) {
  */
 static GstFlowReturn gst_h264_encrypt_prepare_output_buffer(
     GstBaseTransform *trans, GstBuffer *input, GstBuffer **outbuf) {
+  UNUSED(trans);
   // TODO Calculate buffer size better
   gsize input_size = gst_buffer_get_size(input);
   // Also account for SEI, changable AES_BLOCKLEN and emulation bytes
@@ -300,8 +301,9 @@ static GstMemory *gst_h264_encrypt_create_iv_sei_memory(
  *
  * If returns 0, max size was less than required bytes and nothing is written.
  */
-inline static gint _apply_padding(uint8_t *data, size_t size, size_t max_size) {
-  int i;
+inline static size_t _apply_padding(uint8_t *data, size_t size,
+                                    size_t max_size) {
+  size_t i;
   size_t padding_byte_count = AES_BLOCKLEN - (size % AES_BLOCKLEN);
   if (padding_byte_count + size >= max_size) {
     return 0;
@@ -332,7 +334,7 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
                    "Encrypting nal unit of type %d offset %ld size %ld",
                    nalu->type, payload_offset, payload_size);
   // Apply padding
-  int padding_byte_count =
+  size_t padding_byte_count =
       _apply_padding(&nalu->data[payload_offset], payload_size,
                      map_info->maxsize - payload_offset);
   if (G_UNLIKELY(padding_byte_count == 0)) {

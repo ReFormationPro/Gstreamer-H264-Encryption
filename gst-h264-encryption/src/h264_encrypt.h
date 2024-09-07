@@ -62,7 +62,7 @@ G_BEGIN_DECLS
   }                                                                           \
   G_GNUC_END_IGNORE_DEPRECATIONS
 
-GST_ELEMENT_REGISTER_DECLARE(h264encrypt);
+GST_ELEMENT_REGISTER_DECLARE(h264encrypt)
 #define GST_TYPE_H264_ENCRYPT (gst_h264_encrypt_get_type())
 G_DECLARE_TYPE_STRUCTURES(GstH264Encrypt, gst_h264_encrypt, GST, H264_ENCRYPT,
                           GstH264EncryptionBase)
