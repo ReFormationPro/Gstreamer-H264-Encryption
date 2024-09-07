@@ -51,7 +51,14 @@ G_BEGIN_DECLS
 
 // Has to be 16 bytes, excluding the null byte
 #define GST_H264_ENCRYPT_IV_SEI_UUID "GSTH264ENCRYPTIV"
-// NOTE: If IV SEI payload size changes, you need to change the third byte below
+/**
+ * NOTE: If IV SEI payload size changes, you need to change the third byte
+ * below.
+ *
+ * Third byte is the size of the NAL Unit payload and it is calculated as
+ * 16 bytes for user data unregistered SEI UUID plus size of SEI payload.
+ * IV is the payload of the SEI and it is of size AES_BLOCKLEN.
+ */
 #define GST_H264_ENCRYPT_IV_SEI_SIGNATURE \
   "\x06\x05\x20" GST_H264_ENCRYPT_IV_SEI_UUID
 

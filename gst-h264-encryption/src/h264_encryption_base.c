@@ -326,7 +326,12 @@ static GstFlowReturn gst_h264_encryption_base_transform(GstBaseTransform *base,
   }
   gst_buffer_unmap(inbuf, &map_info);
   gst_buffer_unmap(outbuf, &dest_map_info);
-  gst_buffer_set_size(outbuf, dest_offset);
+  // Set size of the output buffer to "dest_offset" to discard
+  // unused but allocated bytes.
+  if (G_UNLIKELY(!gst_buffer_resize_range(outbuf, 0, -1, 0, dest_offset))) {
+    GST_ERROR_OBJECT(base, "Unable to set buffer size!");
+    return GST_FLOW_ERROR;
+  }
   return GST_FLOW_OK;
 error: {
   gst_buffer_unmap(inbuf, &map_info);
