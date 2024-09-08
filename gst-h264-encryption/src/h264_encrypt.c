@@ -157,10 +157,10 @@ static void gst_h264_encrypt_set_property(GObject *object, guint prop_id,
                                           GParamSpec *pspec) {
   GstH264Encrypt *h264encrypt = GST_H264_ENCRYPT(object);
   switch (prop_id) {
-    case PROP_IV_SEED:
+    case PROP_IV_SEED: {
       guint seed = g_value_get_uint(value);
       gst_h264_encrypt_set_random_iv_seed(h264encrypt, seed);
-      break;
+    } break;
     default:
       G_OBJECT_CLASS(gst_h264_encrypt_parent_class)
           ->set_property(object, prop_id, value, pspec);
@@ -195,7 +195,7 @@ void gst_h264_encrypt_enter_base_transform(
  * changed too
  */
 static inline gboolean is_iv_sei(void *sei_payload, size_t payload_size) {
-  const int signature_size = sizeof(GST_H264_ENCRYPT_IV_SEI_SIGNATURE) - 1;
+  size_t signature_size = sizeof(GST_H264_ENCRYPT_IV_SEI_SIGNATURE) - 1;
   return payload_size >= signature_size &&
          memcmp(sei_payload, GST_H264_ENCRYPT_IV_SEI_SIGNATURE,
                 signature_size) == 0;
@@ -266,12 +266,11 @@ static void gst_h264_encrypt_init(GstH264Encrypt *h264encrypt) {
  */
 static GstFlowReturn gst_h264_encrypt_prepare_output_buffer(
     GstBaseTransform *trans, GstBuffer *input, GstBuffer **outbuf) {
-  (void) trans; // unused
-
-  // TODO: Calculate buffer size better
+  UNUSED(trans);
+  // TODO Calculate buffer size better
   gsize input_size = gst_buffer_get_size(input);
   // Also account for SEI, changable AES_BLOCKLEN and emulation bytes
-  *outbuf = gst_buffer_new_and_alloc(input_size + 40 + AES_BLOCKLEN + 30);
+  *outbuf = gst_buffer_new_and_alloc(input_size + 40 + AES_BLOCKLEN + 210);
   return GST_FLOW_OK;
 }
 
@@ -300,8 +299,9 @@ static GstMemory *gst_h264_encrypt_create_iv_sei_memory(
  *
  * If returns 0, max size was less than required bytes and nothing is written.
  */
-inline static gint _apply_padding(uint8_t *data, size_t size, size_t max_size) {
-  int i;
+inline static size_t _apply_padding(uint8_t *data, size_t size,
+                                    size_t max_size) {
+  size_t i;
   size_t padding_byte_count = AES_BLOCKLEN - (size % AES_BLOCKLEN);
   if (padding_byte_count + size >= max_size) {
     return 0;
@@ -332,8 +332,9 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
                    "Encrypting nal unit of type %d offset %ld size %ld",
                    nalu->type, payload_offset, payload_size);
   // Apply padding
-  int padding_byte_count = _apply_padding(&nalu->data[payload_offset],
-                                          payload_size, map_info->maxsize);
+  size_t padding_byte_count =
+      _apply_padding(&nalu->data[payload_offset], payload_size,
+                     map_info->maxsize - payload_offset);
   if (G_UNLIKELY(padding_byte_count == 0)) {
     GST_ERROR_OBJECT(h264encrypt, "Not enough space for padding!");
     return FALSE;
@@ -393,6 +394,15 @@ static gboolean gst_h264_encrypt_encrypt_slice_nalu(GstH264Encrypt *h264encrypt,
   // Increase offset/size by the amount of added emulation prevention bytes
   *dest_offset += j - i;
   // payload_size += j - i;
+  // Add end marker
+  if (G_UNLIKELY(j + 1 > map_info->maxsize)) {
+    GST_ERROR_OBJECT(h264encrypt,
+                     "Unable to encrypt as there is not enough space for "
+                     "ciphertext end marker");
+    return FALSE;
+  }
+  target[j] = CIPHERTEXT_END_MARKER;
+  (*dest_offset)++;
   return TRUE;
 }
 

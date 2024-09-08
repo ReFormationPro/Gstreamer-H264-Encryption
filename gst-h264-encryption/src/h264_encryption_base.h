@@ -26,6 +26,16 @@
 
 G_BEGIN_DECLS
 
+/**
+ * Ciphertext may end with a null-byte and this null-byte is discarded
+ * according to ITU-T Rec. H.264 (05/2003) Section B.2 point 5.
+ * To avoid this, we always put a marker at the end of the ciphertext,
+ * whose value is defined below. Any byte greater than 0x03 should be ok.
+ */
+#define CIPHERTEXT_END_MARKER 0x80
+// Fix unused variable warnings
+#define UNUSED(x) (void)(x)
+
 #define IS_SLICE_NALU(nalu_type) \
   (nalu_type >= GST_H264_NAL_SLICE && nalu_type <= GST_H264_NAL_SLICE_IDR)
 

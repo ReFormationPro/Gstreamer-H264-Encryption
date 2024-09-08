@@ -124,7 +124,7 @@ static void gst_h264_decrypt_init(GstH264Decrypt *h264decrypt) {
 
 static GstFlowReturn gst_h264_decrypt_prepare_output_buffer(
     GstBaseTransform *trans, GstBuffer *input, GstBuffer **outbuf) {
-  (void) trans; // unused
+  UNUSED(trans);
   gsize input_size = gst_buffer_get_size(input);
   *outbuf = gst_buffer_new_and_alloc(input_size);
   return GST_FLOW_OK;
@@ -139,9 +139,8 @@ static void gst_h264_decrypt_enter_base_transform(
 static gboolean gst_h264_decrypt_before_nalu_copy(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *src_nalu,
     GstMapInfo *dest_map_info, size_t *dest_offset, gboolean *copy) {
-  (void) dest_map_info; // unused
-  (void) dest_offset;   // unused
-
+  UNUSED(dest_map_info);
+  UNUSED(dest_offset);
   *copy = TRUE;
   GstH264Decrypt *h264decrypt = GST_H264_DECRYPT(encryption_base);
   if (h264decrypt->found_iv_sei) {
@@ -190,8 +189,7 @@ static gboolean gst_h264_decrypt_before_nalu_copy(
 static gboolean gst_h264_decrypt_process_slice_nalu(
     GstH264EncryptionBase *encryption_base, GstH264NalUnit *dest_nalu,
     GstMapInfo *dest_map_info, size_t *dest_offset) {
-  (void) dest_map_info; // unused
-
+  UNUSED(dest_map_info);
   GstH264Decrypt *h264decrypt = GST_H264_DECRYPT(encryption_base);
   if (G_UNLIKELY(!h264decrypt->found_iv_sei)) {
     GST_ERROR_OBJECT(
@@ -249,6 +247,16 @@ static gboolean gst_h264_decrypt_decrypt_slice_nalu(GstH264Decrypt *h264decrypt,
           encryption_base, utils->nalparser, nalu, &payload_offset,
           &payload_size)) {
     return FALSE;
+  }
+  // Check end marker
+  if (nalu->data[payload_offset + payload_size - 1] != CIPHERTEXT_END_MARKER) {
+    GST_ERROR_OBJECT(h264decrypt,
+                     "Ciphertext end marker is not found. Last byte of the "
+                     "payload will not be ignored.");
+  } else {
+    // Remove end marker from the payload and overwrite it in the output buffer
+    payload_size--;
+    (*dest_offset)--;
   }
   // Remove emulation prevention bytes
   uint8_t *target = &nalu->data[payload_offset];
