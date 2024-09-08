@@ -1,4 +1,4 @@
-project('gst-template', 'c', version : '1.23.1', license : 'GPL')
+project('gst-h264-encryption', 'c', version : '1.23.1', license : 'GPL')
 
 plugins_install_dir = join_paths(get_option('libdir'), 'gstreamer-1.0')
 
